@@ -25,7 +25,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import type { BarberSettings } from '@/types';
-import { PlusCircle, Save, Trash2, Clock } from 'lucide-react';
+import { PlusCircle, Save, Trash2, Clock, DollarSign } from 'lucide-react'; // Added DollarSign
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getBarberSettingsFromStorage, saveBarberSettingsToStorage } from '@/lib/settings-storage';
@@ -47,7 +47,7 @@ const dailyScheduleSchema = z.object({
 });
 
 const settingsSchema = z.object({
-  rentAmount: z.number().positive({ message: 'Rent amount must be positive.' }),
+  rentAmount: z.coerce.number().positive({ message: 'Rent amount must be positive.' }), // Use coerce for automatic conversion
   monday: dailyScheduleSchema,
   tuesday: dailyScheduleSchema,
   wednesday: dailyScheduleSchema,
@@ -97,32 +97,45 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
 
    React.useEffect(() => {
        setIsClient(true);
-       setIsLoading(false);
    }, []);
+
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
-    defaultValues: {
-        rentAmount: 0,
-        monday: { available: true, start: '09:00', end: '17:00' },
-        tuesday: { available: true, start: '09:00', end: '17:00' },
-        wednesday: { available: true, start: '09:00', end: '17:00' },
-        thursday: { available: true, start: '09:00', end: '17:00' },
-        friday: { available: true, start: '09:00', end: '17:00' },
-        saturday: { available: false },
-        sunday: { available: false },
-         breakTimes: [],
-         lunchBreak: { start: '12:00', end: '13:00' },
+    defaultValues: async () => {
+        // Fetch settings only on client side
+        if (typeof window !== 'undefined') {
+            setIsLoading(true);
+            const storedSettings = getBarberSettingsFromStorage(barberId);
+            setIsLoading(false);
+            return storedSettings;
+        }
+        // Provide server-side defaults (or empty state)
+        return {
+             rentAmount: 0, // Default server-side
+             monday: { available: true, start: '09:00', end: '17:00' },
+             tuesday: { available: true, start: '09:00', end: '17:00' },
+             wednesday: { available: true, start: '09:00', end: '17:00' },
+             thursday: { available: true, start: '09:00', end: '17:00' },
+             friday: { available: true, start: '09:00', end: '17:00' },
+             saturday: { available: false },
+             sunday: { available: false },
+             breakTimes: [],
+             lunchBreak: { start: '12:00', end: '13:00' },
+        };
     },
      shouldUnregister: false,
+     mode: 'onChange', // Enable mode if needed
   });
 
    React.useEffect(() => {
      if (isClient) {
-       console.log("SettingsPanel: Client mounted, resetting form with stored data.");
-       const storedSettings = getBarberSettingsFromStorage(barberId);
-       form.reset(storedSettings);
-       setIsLoading(false);
+        setIsLoading(true);
+        console.log("SettingsPanel: Client mounted, resetting form with stored data.");
+        const storedSettings = getBarberSettingsFromStorage(barberId);
+        console.log("SettingsPanel: Loaded settings:", storedSettings);
+        form.reset(storedSettings);
+        setIsLoading(false);
      }
    }, [isClient, barberId, form.reset]);
 
@@ -135,6 +148,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
 
   function onSubmit(data: SettingsFormValues) {
     if (!isClient) return;
+    console.log("Submitting data:", data); // Log data before saving
 
     setIsSaving(true);
     try {
@@ -144,7 +158,8 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
           title: 'Settings Saved',
           description: 'Your schedule has been updated successfully.',
         });
-         form.reset(data);
+         form.reset(data); // Reset with the *saved* data to ensure form reflects stored state
+         console.log("Settings saved and form reset:", data);
       } else {
          throw new Error("Failed to save settings to local storage.");
       }
@@ -173,6 +188,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
           {daysOfWeek.map(day => (
             <div key={day}>
               <Skeleton className="h-5 w-32 mb-2" />
+               <Skeleton className="h-5 w-16 mb-4" />
               <div className="grid grid-cols-2 gap-4">
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
@@ -224,68 +240,93 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                   name="rentAmount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Rent Amount</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} />
-                      </FormControl>
-                      <FormMessage />
+                      <FormLabel>Rent Amount (COP)</FormLabel>
+                       <FormControl>
+                         <div className="relative">
+                           <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                           <Input type="number" step="100" placeholder="Enter monthly rent" className="pl-8" {...field} />
+                         </div>
+                       </FormControl>
+                       <FormMessage />
                     </FormItem>
                   )}
                 />
+             <Separator />
 
-            {daysOfWeek.map(day => (
-              <div key={day}>
-                <h3 className="text-lg font-medium mb-2">{day.charAt(0).toUpperCase() + day.slice(1)}</h3>
-                <FormField
-                  control={form.control}
-                  name={day}
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center space-x-2">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value.available}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="text-base">Available</FormLabel>
-                      </div>
-                      {field.value.available && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                          <FormField
-                            control={form.control}
-                            name={`${day}.start`}
-                            render={({ field }) => (
+            {daysOfWeek.map(day => {
+               const fieldName = day as keyof SettingsFormValues; // Type assertion
+               const isAvailable = form.watch(`${fieldName}.available`);
+
+               return (
+                  <div key={day} className="p-4 border rounded-md space-y-3">
+                     <FormField
+                        control={form.control}
+                        name={`${fieldName}.available`} // Use type assertion here
+                        render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                           <FormControl>
+                              <Checkbox
+                                 checked={field.value}
+                                 onCheckedChange={field.onChange}
+                              />
+                           </FormControl>
+                            <FormLabel className="text-lg font-medium capitalize">
+                              {day}
+                           </FormLabel>
+                        </FormItem>
+                        )}
+                     />
+
+                     {isAvailable && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-8 pt-2">
+                        <FormField
+                           control={form.control}
+                           name={`${fieldName}.start`}
+                           render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Start Time</FormLabel>
-                                <FormControl>
-                                  <Input type="time" {...field} />
-                                </FormControl>
-                                <FormMessage />
+                              <FormLabel>Start Time</FormLabel>
+                              <FormControl>
+                                 <Input type="time" {...field} value={field.value ?? ""} />
+                              </FormControl>
+                              <FormMessage />
                               </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`${day}.end`}
-                            render={({ field }) => (
+                           )}
+                        />
+                        <FormField
+                           control={form.control}
+                           name={`${fieldName}.end`}
+                           render={({ field }) => (
                               <FormItem>
-                                <FormLabel>End Time</FormLabel>
-                                <FormControl>
-                                  <Input type="time" {...field} />
-                                </FormControl>
-                                <FormMessage />
+                              <FormLabel>End Time</FormLabel>
+                              <FormControl>
+                                  <Input type="time" {...field} value={field.value ?? ""} />
+                              </FormControl>
+                              <FormMessage />
                               </FormItem>
-                            )}
-                          />
+                           )}
+                        />
+                         {/* Display top-level error for dailySchedule refinement */}
+                        {form.formState.errors[fieldName]?.root?.message && (
+                              <p className="text-sm font-medium text-destructive sm:col-span-2">
+                              {form.formState.errors[fieldName]?.root?.message}
+                              </p>
+                        )}
+                         {form.formState.errors[fieldName]?.start?.message && (
+                              <p className="text-sm font-medium text-destructive sm:col-span-2">
+                                  Start time: {form.formState.errors[fieldName]?.start?.message}
+                              </p>
+                         )}
+                          {form.formState.errors[fieldName]?.end?.message && (
+                              <p className="text-sm font-medium text-destructive sm:col-span-2">
+                                  End time: {form.formState.errors[fieldName]?.end?.message}
+                              </p>
+                          )}
                         </div>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            ))}
+                     )}
+                  </div>
+               );
+            })}
+
 
             <Separator />
 
@@ -300,7 +341,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                     <FormItem>
                       <FormLabel>Start Time</FormLabel>
                       <FormControl>
-                        <Input type="time" {...field} />
+                        <Input type="time" {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -313,13 +354,19 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                     <FormItem>
                       <FormLabel>End Time</FormLabel>
                       <FormControl>
-                        <Input type="time" {...field} />
+                        <Input type="time" {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
+               {/* Display top-level error for lunchBreak refinement */}
+               {form.formState.errors.lunchBreak?.root?.message && (
+                 <p className="text-sm font-medium text-destructive pt-1">
+                   {form.formState.errors.lunchBreak.root.message}
+                 </p>
+               )}
                <FormDescription className="mt-2 flex items-center gap-1 text-xs">
                  <Clock className="h-3 w-3" />
                  Ensure lunch time is within your work hours.
@@ -340,7 +387,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                        <FormItem>
                          <FormLabel>Break Start</FormLabel>
                          <FormControl>
-                           <Input type="time" {...f} />
+                           <Input type="time" {...f} value={f.value ?? ""} />
                          </FormControl>
                          <FormMessage />
                        </FormItem>
@@ -353,12 +400,18 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                        <FormItem>
                          <FormLabel>Break End</FormLabel>
                          <FormControl>
-                           <Input type="time" {...f} />
+                           <Input type="time" {...f} value={f.value ?? ""} />
                          </FormControl>
                          <FormMessage />
                        </FormItem>
                      )}
                    />
+                    {/* Display top-level error for break refinement */}
+                    {form.formState.errors.breakTimes?.[index]?.root?.message && (
+                       <p className="text-sm font-medium text-destructive pt-1 sm:col-span-2">
+                         {form.formState.errors.breakTimes[index]?.root?.message}
+                       </p>
+                     )}
                     <Button
                       type="button"
                       variant="destructive"
@@ -387,10 +440,11 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
 
           </CardContent>
           <CardFooter>
-            <Button type="submit" disabled={isSaving || !isClient}>
+            <Button type="submit" disabled={isSaving || isLoading || !isClient || !form.formState.isDirty}>
                <Save className="mr-2 h-4 w-4" />
               {isSaving ? 'Saving...' : 'Save Schedule'}
             </Button>
+             {!form.formState.isDirty && !isLoading && isClient && <span className="ml-4 text-sm text-muted-foreground">No changes to save</span>}
           </CardFooter>
         </form>
       </Form>

@@ -13,7 +13,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter // Import CardFooter
+  CardFooter
 } from '@/components/ui/card';
 import {
   Form,
@@ -22,6 +22,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription, // Import FormDescription
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import {
@@ -38,6 +39,7 @@ import type { Payment } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getBarberSettingsFromStorage } from '@/lib/settings-storage';
+import { formatCurrency } from '@/lib/currency-utils'; // Import currency formatter
 
 const rentPaymentSchema = z.object({
   amount: z.coerce.number().positive({ message: 'Amount must be positive.' }),
@@ -104,7 +106,7 @@ export function RentPanel({ barberId }: RentPanelProps) {
       if (success) {
         toast({
           title: 'Payment Successful',
-          description: `Successfully paid $${data.amount.toFixed(2)} towards rent.`,
+          description: `Successfully paid ${formatCurrency(data.amount)} towards rent.`,
         });
         form.reset({ amount: rentAmount }); // Reset form to current rent amount
         fetchHistory();
@@ -138,7 +140,7 @@ export function RentPanel({ barberId }: RentPanelProps) {
       <Card className="lg:col-span-1">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Banknote className="h-5 w-5"/>Make Rent Payment</CardTitle>
-          <CardDescription>Submit your cash payment for this month's station rent. Rent is ${rentAmount.toFixed(2)}.</CardDescription>
+          <CardDescription>Submit your cash payment for this month's station rent. Rent is {formatCurrency(rentAmount)}.</CardDescription>
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -148,21 +150,24 @@ export function RentPanel({ barberId }: RentPanelProps) {
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment Amount</FormLabel>
+                    <FormLabel>Payment Amount (COP)</FormLabel>
                     <FormControl>
                       <div className="relative">
                          <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                         <Input type="number" step="0.01" placeholder="Enter amount" className="pl-8" {...field} />
+                         <Input type="number" step="100" placeholder="Enter amount" className="pl-8" {...field} />
                       </div>
                     </FormControl>
                     <FormMessage />
+                    <FormDescription>
+                       Payment is made in cash.
+                    </FormDescription>
                   </FormItem>
                 )}
               />
             </CardContent>
             <CardFooter>
                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                 {isSubmitting ? "Processing..." : `Pay Rent ($${form.watch('amount') || 0})`}
+                 {isSubmitting ? "Processing..." : `Pay Rent (${formatCurrency(form.watch('amount') || 0)})`}
                </Button>
             </CardFooter>
           </form>
@@ -180,7 +185,7 @@ export function RentPanel({ barberId }: RentPanelProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Amount (COP)</TableHead>
                   <TableHead>Method</TableHead>
                 </TableRow>
               </TableHeader>
@@ -191,7 +196,7 @@ export function RentPanel({ barberId }: RentPanelProps) {
                   paymentHistory.map((payment, index) => (
                     <TableRow key={index}>
                       <TableCell>{format(parseISO(payment.date), 'PPP p')}</TableCell>
-                      <TableCell className="text-right font-medium">${payment.amount.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(payment.amount)}</TableCell>
                       <TableCell>{payment.method}</TableCell>
                     </TableRow>
                   ))

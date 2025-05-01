@@ -44,21 +44,21 @@ function saveData<T>(prefix: string, barberId: string, data: T[]): boolean {
   }
 }
 
-// --- Default Data ---
+// --- Default Data (Adjusted for COP) ---
 export const defaultServices: Service[] = [
-  { id: 'haircut', type: 'service', name: 'Corte de pelo', duration: 30, price: 25 },
-  { id: 'beard_trim', type: 'service', name: 'Recorte de barba', duration: 20, price: 15 },
-  { id: 'haircut_beard', type: 'service', name: 'Corte de pelo y barba', duration: 50, price: 35 },
-  { id: 'shave', type: 'service', name: 'Afeitado con toalla caliente', duration: 40, price: 30 },
+  { id: 'haircut', type: 'service', name: 'Corte de pelo', duration: 30, price: 25000 },
+  { id: 'beard_trim', type: 'service', name: 'Recorte de barba', duration: 20, price: 15000 },
+  { id: 'haircut_beard', type: 'service', name: 'Corte de pelo y barba', duration: 50, price: 35000 },
+  { id: 'shave', type: 'service', name: 'Afeitado con toalla caliente', duration: 40, price: 30000 },
 ];
 
 export const defaultProducts: Product[] = [
-    { id: 'wax', type: 'product', name: 'Cera para peinar', price: 15, description: 'Fijación fuerte, acabado mate.' },
-    { id: 'comb', type: 'product', name: 'Peine clásico', price: 5 },
+    { id: 'wax', type: 'product', name: 'Cera para peinar', price: 15000, description: 'Fijación fuerte, acabado mate.' },
+    { id: 'comb', type: 'product', name: 'Peine clásico', price: 5000 },
 ];
 
 export const defaultCombos: Combo[] = [
-    { id: 'combo_hb', type: 'combo', name: 'Combo Corte y Barba Especial', serviceIds: ['haircut', 'beard_trim'], price: 38 }
+    { id: 'combo_hb', type: 'combo', name: 'Combo Corte y Barba Especial', serviceIds: ['haircut', 'beard_trim'], price: 38000 }
 ];
 
 

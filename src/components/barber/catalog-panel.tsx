@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -63,6 +63,7 @@ import { PlusCircle, Edit, Trash2, Package, Scissors, Star } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { formatCurrency } from '@/lib/currency-utils'; // Import currency formatter
 
 // Schemas
 const serviceSchema = z.object({
@@ -299,8 +300,8 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
                          )} />
                          <FormField control={serviceForm.control} name="price" render={({ field }) => (
                              <FormItem>
-                                 <FormLabel>Price ($)</FormLabel>
-                                 <FormControl><Input type="number" step="0.01" placeholder="e.g., 25.00" {...field} /></FormControl>
+                                 <FormLabel>Price (COP)</FormLabel>
+                                 <FormControl><Input type="number" step="100" placeholder="e.g., 25000" {...field} /></FormControl>
                                  <FormMessage />
                              </FormItem>
                          )} />
@@ -321,8 +322,8 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
                          )} />
                           <FormField control={productForm.control} name="price" render={({ field }) => (
                              <FormItem>
-                                 <FormLabel>Price ($)</FormLabel>
-                                 <FormControl><Input type="number" step="0.01" placeholder="e.g., 15.00" {...field} /></FormControl>
+                                 <FormLabel>Price (COP)</FormLabel>
+                                 <FormControl><Input type="number" step="100" placeholder="e.g., 15000" {...field} /></FormControl>
                                  <FormMessage />
                              </FormItem>
                          )} />
@@ -350,8 +351,8 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
                          )} />
                           <FormField control={comboForm.control} name="price" render={({ field }) => (
                              <FormItem>
-                                 <FormLabel>Combo Price ($)</FormLabel>
-                                 <FormControl><Input type="number" step="0.01" placeholder="e.g., 40.00" {...field} /></FormControl>
+                                 <FormLabel>Combo Price (COP)</FormLabel>
+                                 <FormControl><Input type="number" step="100" placeholder="e.g., 40000" {...field} /></FormControl>
                                   <FormDescription>Set a special price for this combo.</FormDescription>
                                  <FormMessage />
                              </FormItem>
@@ -381,7 +382,7 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
                                                         />
                                                     </FormControl>
                                                     <FormLabel className="font-normal">
-                                                        {service.name} ({service.duration} min, ${service.price})
+                                                        {service.name} ({service.duration} min, {formatCurrency(service.price)})
                                                     </FormLabel>
                                                 </FormItem>
                                             )}
@@ -424,7 +425,7 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Duration (min)</TableHead>
-                  <TableHead>Price ($)</TableHead>
+                  <TableHead>Price (COP)</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -436,7 +437,7 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
                     <TableRow key={service.id}>
                       <TableCell className="font-medium">{service.name}</TableCell>
                       <TableCell>{service.duration}</TableCell>
-                      <TableCell>${service.price.toFixed(2)}</TableCell>
+                      <TableCell>{formatCurrency(service.price)}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button variant="ghost" size="icon" onClick={() => openDialog('service', service)}>
                           <Edit className="h-4 w-4" /> <span className="sr-only">Edit</span>
@@ -476,7 +477,7 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
                   <TableHead>Name</TableHead>
                   <TableHead>Included Services</TableHead>
                   <TableHead>Total Duration (min)</TableHead>
-                  <TableHead>Combo Price ($)</TableHead>
+                  <TableHead>Combo Price (COP)</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -494,7 +495,7 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
                                     {includedServices.map(s => <Badge key={s.id} variant="secondary" className="mr-1 mb-1">{s.name}</Badge>)}
                                 </TableCell>
                                 <TableCell>{totalDuration}</TableCell>
-                                <TableCell>${combo.price.toFixed(2)}</TableCell>
+                                <TableCell>{formatCurrency(combo.price)}</TableCell>
                                 <TableCell className="text-right space-x-2">
                                     <Button variant="ghost" size="icon" onClick={() => openDialog('combo', combo)}>
                                         <Edit className="h-4 w-4" /> <span className="sr-only">Edit</span>
@@ -531,7 +532,7 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Description</TableHead>
-                  <TableHead>Price ($)</TableHead>
+                  <TableHead>Price (COP)</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -543,7 +544,7 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
                         <TableRow key={product.id}>
                           <TableCell className="font-medium">{product.name}</TableCell>
                           <TableCell className="text-muted-foreground">{product.description || '-'}</TableCell>
-                          <TableCell>${product.price.toFixed(2)}</TableCell>
+                          <TableCell>{formatCurrency(product.price)}</TableCell>
                           <TableCell className="text-right space-x-2">
                             <Button variant="ghost" size="icon" onClick={() => openDialog('product', product)}>
                                 <Edit className="h-4 w-4" /> <span className="sr-only">Edit</span>

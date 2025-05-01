@@ -1,11 +1,10 @@
-
 "use client";
 
 import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { addMinutes, isBefore, parse, startOfDay, setHours, setMinutes, format as formatDateFn, getDay } from 'date-fns';
+import { addMinutes, isBefore, parse, startOfDay, setHours, setMinutes, format as formatDateFn, getDay, isSameDay } from 'date-fns'; // Added isSameDay
 import { CalendarIcon, Clock, Scissors, User, Star } from 'lucide-react'; // Added Star icon
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -44,7 +43,8 @@ import { addClientAppointment, getClientAppointments } from '@/lib/storage';
 import { getBarberSettingsFromStorage } from '@/lib/settings-storage';
 import { getBookableItems, getBarberServices, getBarberCombos } from '@/lib/catalog-storage'; // Use catalog storage
 import { cn } from '@/lib/utils';
-import { formatDate, formatTime, isSameDay } from '@/lib/date-utils';
+import { formatDate, formatTime } from '@/lib/date-utils';
+import { formatCurrency } from '@/lib/currency-utils'; // Import currency formatter
 import type { Service, Appointment, TimeSlot, BarberSettings, Combo, BookableItem } from '@/types';
 import { Skeleton } from '../ui/skeleton';
 import { Separator } from '../ui/separator';
@@ -627,7 +627,7 @@ export function ClientBooking() {
                        )}
                        {allServices.map((item) => (
                             <SelectItem key={item.id} value={item.id}>
-                                {item.name} (${item.price.toFixed(2)}) - {item.duration} min
+                                {item.name} ({formatCurrency(item.price)}) - {item.duration} min
                             </SelectItem>
                        ))}
                        {allCombos.length > 0 && (
@@ -640,7 +640,7 @@ export function ClientBooking() {
                            const duration = calculateComboDuration(item); // Use the stored function
                            return (
                                <SelectItem key={item.id} value={item.id}>
-                                   {item.name} (${item.price.toFixed(2)}) - {duration} min
+                                   {item.name} ({formatCurrency(item.price)}) - {duration} min
                                </SelectItem>
                            );
                        })}

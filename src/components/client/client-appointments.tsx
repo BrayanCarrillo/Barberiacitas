@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from 'react';
@@ -30,6 +29,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 import { formatTime } from '@/lib/date-utils'; // Import formatTime
+import { formatCurrency } from '@/lib/currency-utils'; // Import currency formatter
 
 export function ClientAppointments() {
   const [appointments, setAppointments] = React.useState<Appointment[] | null>(null); // Initialize with null
@@ -163,7 +163,7 @@ export function ClientAppointments() {
                          <span>{formatTime(app.time)}</span>
                        </div>
                       {/* Use bookedItem price */}
-                      <p className="text-sm text-muted-foreground">Price: ${app.bookedItem.price.toFixed(2)}</p>
+                      <p className="text-sm text-muted-foreground">Price: {formatCurrency(app.bookedItem.price)}</p>
                      </div>
                      <AlertDialog>
                        <AlertDialogTrigger asChild>

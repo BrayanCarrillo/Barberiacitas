@@ -19,6 +19,7 @@ import { CalendarIcon, Clock, User, Scissors, Star, CheckCircle, XCircle, UserX 
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 import { formatTime } from '@/lib/date-utils'; // Import formatTime utility
+import { formatCurrency } from '@/lib/currency-utils'; // Import currency formatter
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -226,7 +227,7 @@ export function CalendarView({ barberId }: CalendarViewProps) {
                              {/* Icon based on type */}
                              {isCombo ? <Star className="h-4 w-4 text-primary" /> : <Scissors className="h-4 w-4" />}
                              {/* Use bookedItem details */}
-                             <span>{app.bookedItem.name} (${app.bookedItem.price.toFixed(2)})</span>
+                             <span>{app.bookedItem.name} ({formatCurrency(app.bookedItem.price)})</span>
                            </div>
                            <div className="flex items-center text-sm text-muted-foreground gap-2">
                              <Clock className="h-4 w-4" />

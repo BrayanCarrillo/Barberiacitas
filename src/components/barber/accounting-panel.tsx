@@ -21,6 +21,7 @@ import {
 import type { Appointment } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getClientAppointments } from '@/lib/storage'; // Fetch from storage
+import { formatCurrency } from '@/lib/currency-utils'; // Import currency formatter
 
 interface AccountingPanelProps {
   barberId: string;
@@ -171,14 +172,19 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
 
     const total = completedCount + cancelledCount + noShowCount;
 
+    // Avoid division by zero
+    const calculatePercentage = (count: number, total: number) => {
+        return total > 0 ? (count / total * 100).toFixed(1) : '0.0';
+    };
+
     return [
-        { name: 'Completed', value: completedCount, percentage: (completedCount / total * 100).toFixed(1) },
-        { name: 'Cancelled', value: cancelledCount, percentage: (cancelledCount / total * 100).toFixed(1) },
-        { name: 'No Show', value: noShowCount, percentage: (noShowCount / total * 100).toFixed(1) },
-    ];
+        { name: 'Completed', value: completedCount, percentage: calculatePercentage(completedCount, total) },
+        { name: 'Cancelled', value: cancelledCount, percentage: calculatePercentage(cancelledCount, total) },
+        { name: 'No Show', value: noShowCount, percentage: calculatePercentage(noShowCount, total) },
+    ].filter(item => item.value > 0); // Filter out items with 0 value for cleaner pie chart
    }, [filteredAppointments]);
 
-   const hasAppointmentData = appointmentStatusData.some(item => item.value > 0);
+   const hasAppointmentData = appointmentStatusData.length > 0;
 
 
    const renderLoadingState = () => (
@@ -276,7 +282,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(totalRevenue)}</div>
             <p className="text-xs text-muted-foreground">Revenue for selected period</p>
           </CardContent>
         </Card>
@@ -286,7 +292,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-             <div className="text-2xl font-bold">${dailyCashDrawer.toFixed(2)}</div>
+             <div className="text-2xl font-bold">{formatCurrency(dailyCashDrawer)}</div>
              <p className="text-xs text-muted-foreground">Cash amount for today's sales</p>
           </CardContent>
         </Card>
@@ -327,14 +333,14 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(value) => `$${value}`}
+                tickFormatter={(value) => formatCurrency(value)} // Format Y-axis ticks
               />
                <Tooltip
                  cursor={{ fill: 'hsl(var(--accent)/0.1)' }}
                  contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }}
                  labelStyle={{ color: 'hsl(var(--foreground))' }}
                  itemStyle={{ color: 'hsl(var(--foreground))' }}
-                  formatter={(value: number) => `$${value.toFixed(2)}`}
+                  formatter={(value: number) => formatCurrency(value)} // Format tooltip value
                />
               <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -364,7 +370,21 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                     cy="50%"
                     outerRadius={80}
                     fill="#8884d8"
-                    label
+                    label={(props) => {
+                         const { cx, cy, midAngle, innerRadius, outerRadius, percent, index } = props;
+                         const RADIAN = Math.PI / 180;
+                         const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                         const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                         const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                         const entry = servicePopularityData[index];
+
+                         return (
+                            <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
+                                {`${entry.name} (${entry.count})`}
+                            </text>
+                         );
+                    }}
+                     labelLine={false} // Disable default label line
                   >
                     {servicePopularityData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${index % 5 + 1}))`} />
@@ -374,7 +394,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                     contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }}
                     labelStyle={{ color: 'hsl(var(--foreground))' }}
                     itemStyle={{ color: 'hsl(var(--foreground))' }}
-                    formatter={(value: number) => value}
+                    formatter={(value: number, name: string) => [`${value} bookings`, name]} // Format tooltip for service count
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -397,17 +417,17 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                          cy="50%"
                          outerRadius={80}
                          labelLine={false}
-                         label={({ entry, percent }) => `${entry.name} ${(percent * 100).toFixed(0)}%`}
+                         label={({ entry, percent }) => `${entry.name} (${(percent * 100).toFixed(0)}%)`}
                       >
                          {appointmentStatusData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={statusColors[entry.name.toLowerCase() as keyof typeof statusColors] || "hsl(var(--muted))"} />
+                            <Cell key={`cell-${index}`} fill={statusColors[entry.name.toLowerCase().replace(' ', '') as keyof typeof statusColors] || "hsl(var(--muted))"} />
                          ))}
                       </Pie>
                       <Tooltip
                          contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }}
                          labelStyle={{ color: 'hsl(var(--foreground))' }}
                          itemStyle={{ color: 'hsl(var(--foreground))' }}
-                         formatter={(value: number) => value}
+                         formatter={(value: number, name: string) => [`${value} appointments`, name]} // Format tooltip for status count
                       />
                     </PieChart>
                  </ResponsiveContainer>

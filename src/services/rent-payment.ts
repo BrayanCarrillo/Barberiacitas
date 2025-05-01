@@ -36,16 +36,17 @@ export async function submitRentPayment(payment: Payment): Promise<boolean> {
  */
 export async function getRentPaymentHistory(barberId: string): Promise<Payment[]> {
   // TODO: Implement this by calling an API.
+  // Example COP values
   return [
     {
-      amount: 100,
+      amount: 600000, // Example rent in COP
       date: '2024-01-01',
-      method: 'Credit Card',
+      method: 'Cash', // Consistent with RentPanel logic
     },
     {
-      amount: 100,
+      amount: 600000, // Example rent in COP
       date: '2024-02-01',
-      method: 'Credit Card',
+      method: 'Cash', // Consistent with RentPanel logic
     },
   ];
 }
