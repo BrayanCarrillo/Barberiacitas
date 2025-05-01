@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from 'react';
@@ -12,13 +11,22 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import type { Appointment } from '@/types';
-import { getClientAppointments } from '@/lib/storage'; // Import function to get appointments from storage
+import { getClientAppointments, removeClientAppointment } from '@/lib/storage'; // Import function to get appointments from storage
+import { saveClientAppointments } from '@/lib/storage';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { CalendarIcon, Clock, User, Scissors, Star } from 'lucide-react'; // Added Star icon
+import { CalendarIcon, Clock, User, Scissors, Star, CheckCircle, XCircle, UserX } from 'lucide-react'; // Added Star icon
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 import { formatTime } from '@/lib/date-utils'; // Import formatTime utility
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 // Function to get appointments filtered by date from localStorage
 function getBarberAppointmentsForDate(date: Date): Appointment[] {
@@ -55,6 +63,7 @@ export function CalendarView({ barberId }: CalendarViewProps) {
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [currentClientTime, setCurrentClientTime] = React.useState<Date | null>(null);
+  const { toast } = useToast();
 
   // Set initial date and client time on mount (client-side only)
   React.useEffect(() => {
@@ -118,6 +127,28 @@ export function CalendarView({ barberId }: CalendarViewProps) {
       setSelectedDate(null);
     }
   };
+
+   const handleStatusChange = (appointmentId: string, status: 'completed' | 'cancelled' | 'noShow') => {
+      try {
+         const allAppointments = getClientAppointments();
+         const updatedAppointments = allAppointments.map(app =>
+            app.id === appointmentId ? { ...app, status: status } : app
+         );
+         saveClientAppointments(updatedAppointments);
+         setAppointments(updatedAppointments.filter(app => isSameDay(app.date, selectedDate)));
+         toast({
+            title: `Appointment ${status}`,
+            description: `Appointment status updated to ${status}.`,
+         });
+      } catch (error) {
+         console.error("Error updating appointment status:", error);
+         toast({
+            title: "Update Failed",
+            description: "Could not update appointment status. Please try again.",
+            variant: "destructive",
+         });
+      }
+   };
 
   if (!selectedDate || !currentClientTime || isLoading || appointments === null) {
     return (
@@ -202,6 +233,24 @@ export function CalendarView({ barberId }: CalendarViewProps) {
                              <span>{formatTime(app.time)} ({app.bookedItem.duration} min)</span>
                            </div>
                          </div>
+                           <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                 <Button variant="outline" size="sm">
+                                    Update Status
+                                 </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                 <DropdownMenuItem onClick={() => handleStatusChange(app.id, 'completed')}>
+                                    <CheckCircle className="mr-2 h-4 w-4" /> Completed
+                                 </DropdownMenuItem>
+                                 <DropdownMenuItem onClick={() => handleStatusChange(app.id, 'cancelled')}>
+                                    <XCircle className="mr-2 h-4 w-4" /> Cancelled
+                                 </DropdownMenuItem>
+                                 <DropdownMenuItem onClick={() => handleStatusChange(app.id, 'noShow')}>
+                                    <UserX className="mr-2 h-4 w-4" /> No Show
+                                 </DropdownMenuItem>
+                              </DropdownMenuContent>
+                           </DropdownMenu>
                        </div>
                     </li>
                     {index < appointments.length - 1 && <Separator className="my-4" />}
@@ -216,4 +265,3 @@ export function CalendarView({ barberId }: CalendarViewProps) {
     </div>
   );
 }
-```

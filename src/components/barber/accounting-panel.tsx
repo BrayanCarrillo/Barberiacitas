@@ -1,10 +1,9 @@
-
 "use client";
 
 import * as React from 'react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, subWeeks, isWithinInterval, parseISO, compareAsc } from 'date-fns'; // Added parseISO, compareAsc
-import { DollarSign, Users, Calendar as CalendarIconLucide } from 'lucide-react';
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
+import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, subWeeks, isWithinInterval, parseISO, compareAsc } from 'date-fns'; // Added parseISO, compareAsc
+import { DollarSign, Users, Calendar as CalendarIconLucide, CheckCircle, XCircle, UserX } from 'lucide-react';
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from "recharts";
 import {
   Card,
   CardContent,
@@ -27,7 +26,7 @@ interface AccountingPanelProps {
   barberId: string;
 }
 
-type TimePeriod = 'this_week' | 'last_week' | 'this_month' | 'last_month';
+type TimePeriod = 'today' | 'this_week' | 'last_week' | 'this_month' | 'last_month';
 
 interface DateRange {
   start: Date;
@@ -37,6 +36,8 @@ interface DateRange {
 function getDateRange(period: TimePeriod): DateRange {
   const now = new Date();
   switch (period) {
+     case 'today':
+         return { start: startOfDay(now), end: endOfDay(now) };
     case 'this_week':
       return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
     case 'last_week':
@@ -57,6 +58,18 @@ interface DailyRevenue {
   total: number;
   dateObj: Date; // Keep original date for sorting
 }
+
+interface ServiceCount {
+   name: string;
+   count: number;
+}
+
+const statusColors = {
+    completed: "hsl(var(--chart-1))",
+    cancelled: "hsl(var(--destructive))",
+    noShow: "hsl(var(--chart-5))",
+    // Add more statuses as needed
+};
 
 export function AccountingPanel({ barberId }: AccountingPanelProps) {
   const [allAppointments, setAllAppointments] = React.useState<Appointment[]>([]);
@@ -130,6 +143,43 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
         }));
    }, [filteredAppointments]);
 
+   const servicePopularityData: ServiceCount[] = React.useMemo(() => {
+    const serviceCounts = new Map<string, number>();
+
+    filteredAppointments.forEach(app => {
+        const serviceName = app.bookedItem.name;
+        serviceCounts.set(serviceName, (serviceCounts.get(serviceName) || 0) + 1);
+    });
+
+    // Convert map to array for recharts
+    return Array.from(serviceCounts).map(([name, count]) => ({ name, count }));
+}, [filteredAppointments]);
+
+   // Calculate daily cash drawer amount
+   const dailyCashDrawer = React.useMemo(() => {
+      if (timePeriod === 'today') {
+         return totalRevenue;
+      }
+      return 0;
+   }, [timePeriod, totalRevenue]);
+
+
+   const appointmentStatusData = React.useMemo(() => {
+    const completedCount = filteredAppointments.filter(app => app.status === 'completed').length;
+    const cancelledCount = filteredAppointments.filter(app => app.status === 'cancelled').length;
+    const noShowCount = filteredAppointments.filter(app => app.status === 'noShow').length;
+
+    const total = completedCount + cancelledCount + noShowCount;
+
+    return [
+        { name: 'Completed', value: completedCount, percentage: (completedCount / total * 100).toFixed(1) },
+        { name: 'Cancelled', value: cancelledCount, percentage: (cancelledCount / total * 100).toFixed(1) },
+        { name: 'No Show', value: noShowCount, percentage: (noShowCount / total * 100).toFixed(1) },
+    ];
+   }, [filteredAppointments]);
+
+   const hasAppointmentData = appointmentStatusData.some(item => item.value > 0);
+
 
    const renderLoadingState = () => (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -153,7 +203,17 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
              <Skeleton className="h-3 w-28 mt-1" />
          </CardContent>
        </Card>
-       <div className="lg:col-span-4 pt-6">
+       <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+               <CardTitle className="text-sm font-medium">Daily Cash Drawer</CardTitle>
+               <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-3 w-32 mt-1" />
+            </CardContent>
+         </Card>
+         <div className="lg:col-span-4 pt-6">
          <Card>
             <CardHeader>
               <CardTitle>Revenue Overview</CardTitle>
@@ -164,6 +224,24 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
             </CardContent>
          </Card>
        </div>
+       <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Service Popularity</CardTitle>
+            <CardDescription>Most booked services</CardDescription>
+          </CardHeader>
+          <CardContent className="pl-2">
+            <Skeleton className="h-[300px] w-full" />
+          </CardContent>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Appointment Status</CardTitle>
+            <CardDescription>Breakdown of appointment status</CardDescription>
+          </CardHeader>
+          <CardContent className="pl-2">
+            <Skeleton className="h-[300px] w-full" />
+          </CardContent>
+        </Card>
      </div>
   );
 
@@ -182,6 +260,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                     <SelectValue placeholder="Select period" />
                 </SelectTrigger>
                 <SelectContent>
+                   <SelectItem value="today">Today</SelectItem>
                     <SelectItem value="this_week">This Week</SelectItem>
                     <SelectItem value="last_week">Last Week</SelectItem>
                     <SelectItem value="this_month">This Month</SelectItem>
@@ -199,6 +278,16 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
           <CardContent>
             <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground">Revenue for selected period</p>
+          </CardContent>
+        </Card>
+         <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Daily Cash Drawer</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+             <div className="text-2xl font-bold">${dailyCashDrawer.toFixed(2)}</div>
+             <p className="text-xs text-muted-foreground">Cash amount for today's sales</p>
           </CardContent>
         </Card>
         <Card>
@@ -253,7 +342,83 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
           )}
         </CardContent>
       </Card>
+      <div className="grid gap-4 md:grid-cols-2">
+         <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle>Service Popularity</CardTitle>
+            <CardDescription>Most booked services</CardDescription>
+          </CardHeader>
+          <CardContent className="pl-2">
+            {servicePopularityData.length === 0 ? (
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                No service popularity data for this period.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    dataKey="count"
+                    isAnimationActive={false}
+                    data={servicePopularityData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    fill="#8884d8"
+                    label
+                  >
+                    {servicePopularityData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${index % 5 + 1}))`} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }}
+                    labelStyle={{ color: 'hsl(var(--foreground))' }}
+                    itemStyle={{ color: 'hsl(var(--foreground))' }}
+                    formatter={(value: number) => value}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+        <Card className="lg:col-span-1">
+           <CardHeader>
+             <CardTitle>Appointment Status</CardTitle>
+             <CardDescription>Breakdown of appointment status</CardDescription>
+           </CardHeader>
+           <CardContent className="pl-2">
+              {hasAppointmentData ? (
+                 <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                         data={appointmentStatusData}
+                         dataKey="value"
+                         cx="50%"
+                         cy="50%"
+                         outerRadius={80}
+                         labelLine={false}
+                         label={({ entry, percent }) => `${entry.name} ${(percent * 100).toFixed(0)}%`}
+                      >
+                         {appointmentStatusData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={statusColors[entry.name.toLowerCase() as keyof typeof statusColors] || "hsl(var(--muted))"} />
+                         ))}
+                      </Pie>
+                      <Tooltip
+                         contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }}
+                         labelStyle={{ color: 'hsl(var(--foreground))' }}
+                         itemStyle={{ color: 'hsl(var(--foreground))' }}
+                         formatter={(value: number) => value}
+                      />
+                    </PieChart>
+                 </ResponsiveContainer>
+              ) : (
+                 <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                    No appointment status data for this period.
+                 </div>
+              )}
+           </CardContent>
+         </Card>
+      </div>
     </div>
   );
 }
-```

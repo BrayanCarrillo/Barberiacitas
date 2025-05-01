@@ -40,6 +40,7 @@ export interface Appointment {
   };
   date: Date;
   time: string; // e.g., "10:00" (HH:mm)
+  status?: 'completed' | 'cancelled' | 'noShow';
 }
 
 export interface DailySchedule {
@@ -72,6 +73,3 @@ export interface TimeSlot {
 export interface AvailableSlots {
   [date: string]: TimeSlot[];
 }
-
-
-```

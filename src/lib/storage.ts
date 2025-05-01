@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Appointment } from '@/types';
@@ -22,6 +21,7 @@ function parseAppointment(appData: Omit<Appointment, 'date'> & { date: string })
     return {
       ...appData,
       date: date,
+      status: appData.status || 'completed',
     };
   } catch (error) {
      console.error("Error parsing stored appointment:", error, appData);
@@ -68,13 +68,14 @@ export function addClientAppointment(appointment: Appointment): void {
         clientName: appointment.clientName ?? 'Unknown Client', // Fallback just in case
         date: appointment.date.toISOString(),
         // Ensure bookedItem is correctly structured
-        bookedItem: {
+         bookedItem: {
             id: appointment.bookedItem.id,
             type: appointment.bookedItem.type,
             name: appointment.bookedItem.name,
             duration: appointment.bookedItem.duration,
             price: appointment.bookedItem.price,
-        }
+        },
+        status: appointment.status || 'completed',
     };
     const updatedAppointments = [...existingAppointments, appointmentToStore];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedAppointments));
@@ -83,6 +84,36 @@ export function addClientAppointment(appointment: Appointment): void {
      // Re-throw or handle as appropriate
      throw error instanceof Error ? error : new Error("Failed to save appointment.");
   }
+}
+
+export function saveClientAppointments(appointments: Appointment[]): void {
+   // Check if running on the client side
+   if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn("Cannot save appointments: Local storage is not available.");
+      return;
+   }
+
+   try {
+      // Convert Date objects back to ISO strings before storing again
+      const appointmentsToStore = appointments.map(app => ({
+         ...app,
+         clientName: app.clientName, // Keep the clientName
+         date: app.date.toISOString(),
+         // Ensure bookedItem is stored correctly
+          bookedItem: {
+             id: app.bookedItem.id,
+             type: app.bookedItem.type,
+             name: app.bookedItem.name,
+             duration: app.bookedItem.duration,
+             price: app.bookedItem.price,
+         },
+         status: app.status || 'completed',
+      }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appointmentsToStore));
+   } catch (error) {
+      console.error("Error saving appointments to local storage:", error);
+      throw new Error("Failed to save appointments.");
+   }
 }
 
 export function removeClientAppointment(appointmentId: string): void {
@@ -106,7 +137,8 @@ export function removeClientAppointment(appointmentId: string): void {
             name: app.bookedItem.name,
             duration: app.bookedItem.duration,
             price: app.bookedItem.price,
-        }
+        },
+        status: app.status || 'completed',
      }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appointmentsToStore));
   } catch (error) {
@@ -114,4 +146,3 @@ export function removeClientAppointment(appointmentId: string): void {
       throw new Error("Failed to cancel appointment.");
   }
 }
-```

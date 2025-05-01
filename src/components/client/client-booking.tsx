@@ -12,7 +12,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -223,6 +222,33 @@ const bookingFormSchema = z.object({
 
 type BookingFormValues = z.infer<typeof bookingFormSchema>;
 
+// Function to check if a client has exceeded the booking limit
+const hasExceededBookingLimit = (appointments: Appointment[], date: Date, maxBookings: number): boolean => {
+   const appointmentsOnDate = appointments.filter(app => isSameDay(app.date, date));
+   return appointmentsOnDate.length >= maxBookings;
+};
+
+// Function to store booking status in local storage to persist across sessions
+const setBookingStatus = (date: string, status: boolean) => {
+    try {
+      localStorage.setItem(`bookingStatus_${date}`, JSON.stringify(status));
+    } catch (error) {
+      console.error("Error setting booking status in local storage:", error);
+    }
+  };
+
+  // Function to retrieve booking status from local storage
+  const getBookingStatus = (date: string): boolean => {
+    try {
+      const status = localStorage.getItem(`bookingStatus_${date}`);
+      return status ? JSON.parse(status) : false;
+    } catch (error) {
+      console.error("Error getting booking status from local storage:", error);
+      return false;
+    }
+  };
+
+
 export function ClientBooking() {
   const { toast } = useToast();
   const [availableSlots, setAvailableSlots] = React.useState<TimeSlot[]>([]);
@@ -235,6 +261,8 @@ export function ClientBooking() {
   const [allServices, setAllServices] = React.useState<Service[]>([]); // Need services for combo duration calculation
   const [allCombos, setAllCombos] = React.useState<Combo[]>([]); // Also need combos for selection
 
+  // Booking limit
+  const maxBookingsPerDay = 2;
 
   const form = useForm<BookingFormValues>({
     resolver: zodResolver(bookingFormSchema),
@@ -353,6 +381,31 @@ export function ClientBooking() {
       form.resetField('time', { defaultValue: '' }); // Reset time selection
       console.log(`ClientBooking Effect: Fetching slots for ${formatDate(selectedDateWatcher)} and item ${selectedItem.name} (Duration: ${selectedItemDuration})`);
 
+        const selectedDateString = formatDate(selectedDateWatcher);
+        const bookingStatus = getBookingStatus(selectedDateString);
+
+         if (bookingStatus) {
+            toast({
+               title: "Booking Already Made",
+               description: "You have already booked an appointment for this day.",
+               variant: "warning",
+            });
+            setIsLoadingSlots(false);
+            return;
+         }
+
+
+       // Check if booking limit has been exceeded
+       if (hasExceededBookingLimit(existingAppointments, selectedDateWatcher, maxBookingsPerDay)) {
+          toast({
+             title: "Booking Limit Exceeded",
+             description: `You have reached the maximum limit of ${maxBookingsPerDay} bookings for this day.`,
+             variant: "warning",
+          });
+          setIsLoadingSlots(false);
+          return;
+       }
+
       getAvailableSlotsForDate(selectedDateWatcher, selectedItemDuration, barberSettings, existingAppointments)
       .then(slots => {
           console.log("ClientBooking Effect: Received slots:", slots);
@@ -396,6 +449,28 @@ export function ClientBooking() {
 
   function onSubmit(data: BookingFormValues) {
      if (!isClient) return;
+
+       const selectedDateString = formatDate(data.date);
+         const bookingStatus = getBookingStatus(selectedDateString);
+
+         if (bookingStatus) {
+            toast({
+               title: "Booking Already Made",
+               description: "You have already booked an appointment for this day.",
+               variant: "warning",
+            });
+            return;
+         }
+
+      // Check if booking limit has been exceeded *before* submitting
+      if (hasExceededBookingLimit(existingAppointments, data.date, maxBookingsPerDay)) {
+         toast({
+            title: "Booking Limit Exceeded",
+            description: `You have reached the maximum limit of ${maxBookingsPerDay} bookings for this day.`,
+            variant: "warning",
+         });
+         return;
+      }
 
      // Find the item again *at submission time* to ensure it's still valid
      const currentSelectedItem = bookableItems.find(item => item.id === data.itemId);
@@ -465,6 +540,8 @@ export function ClientBooking() {
       console.log("Updating existingAppointments state after booking:", updatedAppointments);
       setExistingAppointments(updatedAppointments);
 
+        // After successful booking, store the booking status in local storage
+        setBookingStatus(selectedDateString, true);
 
        window.dispatchEvent(new CustomEvent('appointmentbooked'));
        window.dispatchEvent(new StorageEvent('storage', { key: 'barberEaseClientAppointments' }));
