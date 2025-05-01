@@ -1,11 +1,10 @@
-
 "use client";
 
 import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { addMinutes, isBefore, parse, startOfDay, setHours, setMinutes } from 'date-fns';
+import { addMinutes, isBefore, parse, startOfDay, setHours, setMinutes, format as formatDateFn } from 'date-fns'; // Renamed format import
 import { CalendarIcon, Clock, Scissors, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -94,9 +93,7 @@ async function getAvailableSlotsForDate(
     settings: BarberSettings,
     existingAppointments: Appointment[]
 ): Promise<TimeSlot[]> {
-    console.log(`Fetching slots for ${format(date, 'yyyy-MM-dd')} with duration ${serviceDuration}min using settings:`, settings);
-    // Simulate API delay if needed
-    // await new Promise(resolve => setTimeout(resolve, 300));
+    console.log(`Fetching slots for ${formatDateFn(date, 'yyyy-MM-dd')} with duration ${serviceDuration}min using settings:`, settings);
 
     const slots: TimeSlot[] = [];
     const intervalMinutes = 15; // Check availability every 15 minutes
@@ -128,43 +125,51 @@ async function getAvailableSlotsForDate(
         // 1. Check if slot END goes past work end time
         if (isBefore(workEnd, slotEndTime)) {
             isAvailable = false;
-            // console.log(`Slot ${format(slotStartTime, 'HH:mm')} unavailable: Ends after work`);
+            // console.log(`Slot ${formatTime(formatDateFn(slotStartTime, 'HH:mm'))} unavailable: Ends after work (${formatTime(formatDateFn(workEnd, 'HH:mm'))})`);
         }
 
         // 2. Check if the slot overlaps with lunch or breaks
         if (isAvailable && isOverlappingWithBreaks(slotStartTime, slotEndTime, { start: lunchStart, end: lunchEnd }, breaks)) {
             isAvailable = false;
-             // console.log(`Slot ${format(slotStartTime, 'HH:mm')} unavailable: Overlaps break/lunch`);
+            // console.log(`Slot ${formatTime(formatDateFn(slotStartTime, 'HH:mm'))} unavailable: Overlaps break/lunch`);
         }
 
         // 3. Check if the slot is in the past (only if it's today)
+        // Make sure comparison accounts for the *entire* slot duration
         if (isAvailable && isToday && isBefore(slotStartTime, now)) {
             isAvailable = false;
-             // console.log(`Slot ${format(slotStartTime, 'HH:mm')} unavailable: Is in the past`);
+            // console.log(`Slot ${formatTime(formatDateFn(slotStartTime, 'HH:mm'))} unavailable: Is in the past (Current time: ${formatTime(formatDateFn(now, 'HH:mm'))})`);
         }
 
          // 4. Check if the slot overlaps with an existing appointment
          if (isAvailable) {
             for (const existingApp of appointmentsOnDate) {
+                // Ensure existingApp.time is valid before parsing
+                if (!existingApp.time || !/^\d{2}:\d{2}$/.test(existingApp.time)) {
+                   console.warn("Skipping existing appointment due to invalid time format:", existingApp);
+                   continue; // Skip this appointment if time is invalid
+                }
                 const existingStart = parseTimeString(existingApp.time, selectedDayStart);
                 const existingEnd = addMinutes(existingStart, existingApp.service.duration);
+                // Check for overlap: (SlotStart < ExistingEnd) AND (SlotEnd > ExistingStart)
                 if (slotStartTime < existingEnd && slotEndTime > existingStart) {
                     isAvailable = false;
-                    // console.log(`Slot ${format(slotStartTime, 'HH:mm')} unavailable: Overlaps existing appointment at ${format(existingStart, 'HH:mm')}`);
+                    // console.log(`Slot ${formatTime(formatDateFn(slotStartTime, 'HH:mm'))} unavailable: Overlaps existing appointment at ${formatTime(existingApp.time)}`);
                     break; // No need to check other appointments for this slot
                 }
             }
         }
 
 
-        const timeString = format(slotStartTime, 'HH:mm');
+        const timeString = formatDateFn(slotStartTime, 'HH:mm');
         slots.push({ time: timeString, available: isAvailable });
+        // console.log(`Slot ${formatTime(timeString)} is ${isAvailable ? 'available' : 'unavailable'}`);
 
         // Move to the next potential slot time
         currentTime = addMinutes(currentTime, intervalMinutes);
     }
 
-    console.log(`Generated ${slots.length} slots for ${format(date, 'yyyy-MM-dd')}, ${slots.filter(s => s.available).length} available.`);
+    console.log(`Generated ${slots.length} slots for ${formatDateFn(date, 'yyyy-MM-dd')}, ${slots.filter(s => s.available).length} available.`);
     return slots;
 };
 
@@ -188,11 +193,24 @@ export function ClientBooking() {
   const [barberSettings, setBarberSettings] = React.useState<BarberSettings | null>(null); // State for settings
   const [existingAppointments, setExistingAppointments] = React.useState<Appointment[]>([]); // State for existing appointments
 
+  const form = useForm<BookingFormValues>({
+    resolver: zodResolver(bookingFormSchema),
+    defaultValues: {
+      clientName: '',
+      serviceId: '',
+      date: undefined,
+      time: '',
+    },
+     mode: "onChange", // Validate on change for better UX
+  });
+
    React.useEffect(() => {
     setIsClient(true); // Set to true once component mounts on client
      // Fetch barber settings and existing appointments on mount
      const settings = getBarberSettingsFromStorage("barber123"); // Assuming a fixed barber ID for client view
      const appointments = getClientAppointments(); // Fetch all stored appointments initially
+     console.log("ClientBooking Mount: Loaded Settings:", settings);
+     console.log("ClientBooking Mount: Loaded Appointments:", appointments);
      setBarberSettings(settings);
      setExistingAppointments(appointments);
 
@@ -233,18 +251,7 @@ export function ClientBooking() {
          window.removeEventListener('appointmentbooked', handleAppointmentBooked);
      };
 
-  }, []); // Runs only once on mount
-
-  const form = useForm<BookingFormValues>({
-    resolver: zodResolver(bookingFormSchema),
-    defaultValues: {
-      clientName: '',
-      serviceId: '',
-      date: undefined,
-      time: '',
-    },
-     mode: "onChange", // Validate on change for better UX
-  });
+  }, [form]); // Added form to dependency array for form.trigger
 
   const selectedServiceId = form.watch('serviceId');
   const selectedDateWatcher = form.watch('date'); // Watch date from form state
@@ -257,16 +264,19 @@ export function ClientBooking() {
       setIsLoadingSlots(true);
       setAvailableSlots([]); // Clear previous slots immediately
       form.resetField('time', { defaultValue: '' }); // Reset time when date or service changes
+      console.log(`ClientBooking Effect: Fetching slots for ${formatDate(selectedDateWatcher)} and service ${selectedService.name}`);
+
 
       // Use a timeout to allow UI to update before potentially long fetch
        const timerId = setTimeout(() => {
            getAvailableSlotsForDate(selectedDateWatcher, selectedService.duration, barberSettings, existingAppointments)
             .then(slots => {
-                console.log("Received slots:", slots);
+                console.log("ClientBooking Effect: Received slots:", slots);
                 setAvailableSlots(slots);
                 // Check if any slots are available
                  const hasAvailableSlots = slots.some(slot => slot.available);
                  if (!hasAvailableSlots) {
+                   console.log("ClientBooking Effect: No available slots found for the selected criteria.");
                    // Use toast to inform user if no slots are available
                    toast({
                     title: "No Slots Available",
@@ -277,7 +287,7 @@ export function ClientBooking() {
                  }
             })
             .catch(error => {
-                console.error("Failed to fetch available slots:", error);
+                console.error("ClientBooking Effect: Failed to fetch available slots:", error);
                 setAvailableSlots([]);
                 toast({
                     title: "Error Loading Slots",
@@ -286,6 +296,7 @@ export function ClientBooking() {
                 });
             })
             .finally(() => {
+                console.log("ClientBooking Effect: Finished fetching slots.");
                 setIsLoadingSlots(false); // Set loading false after fetch completes or fails
             });
        }, 100); // Small delay
@@ -293,12 +304,14 @@ export function ClientBooking() {
        return () => clearTimeout(timerId); // Cleanup timeout if dependencies change quickly
 
     } else {
+       // console.log("ClientBooking Effect: Conditions not met to fetch slots.", {selectedDateWatcher, selectedService, barberSettings, isClient});
        setAvailableSlots([]); // Clear slots if date/service/settings not ready
        // Don't set loading if dependencies not met
-       if (isLoadingSlots) setIsLoadingSlots(false);
+       // if (isLoadingSlots) setIsLoadingSlots(false); // Removed this potential state flicker source
     }
    // Ensure dependencies cover all required data for fetching slots
-  }, [selectedDateWatcher, selectedService, barberSettings, existingAppointments, isClient, form.resetField, toast, isLoadingSlots]); // Added missing dependencies
+   // REMOVED isLoadingSlots from dependency array to prevent potential loops
+  }, [selectedDateWatcher, selectedService, barberSettings, existingAppointments, isClient, form.resetField, toast]);
 
 
   function onSubmit(data: BookingFormValues) {
@@ -322,6 +335,7 @@ export function ClientBooking() {
         });
         return;
      }
+    console.log("Submitting booking:", data);
 
 
     const newAppointment: Appointment = {
@@ -334,13 +348,19 @@ export function ClientBooking() {
 
     try {
       addClientAppointment(newAppointment);
+      console.log("Appointment added successfully:", newAppointment);
       toast({
         title: 'Appointment Booked!',
         description: `${newAppointment.clientName}, your ${selectedService.name} is scheduled for ${formatDate(data.date)} at ${formatTime(data.time)}.`,
       });
       form.reset(); // Reset the entire form
       setAvailableSlots([]); // Explicitly clear slots as well
-      setExistingAppointments(getClientAppointments()); // Update local state immediately
+      // Fetch updated appointments *after* adding the new one
+      const updatedAppointments = getClientAppointments();
+      console.log("Updating existingAppointments state after booking:", updatedAppointments);
+      setExistingAppointments(updatedAppointments); // Update local state immediately
+
+
       // Trigger events to notify other components (redundant with storage listener but kept for safety)
        window.dispatchEvent(new CustomEvent('appointmentbooked'));
        window.dispatchEvent(new StorageEvent('storage', { key: 'barberEaseClientAppointments' }));
