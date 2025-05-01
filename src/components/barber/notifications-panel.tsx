@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from 'react';
@@ -15,32 +14,8 @@ import type { Appointment } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
-
-// Mock function to get ALL appointments for the barber (replace with API call)
-// In a real app, you might fetch appointments for today and maybe tomorrow
-async function getAllBarberAppointments(barberId: string): Promise<Appointment[]> {
-  console.log(`Fetching all appointments for barber ${barberId}`);
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 600));
-
-  const today = startOfDay(new Date());
-  const tomorrow = startOfDay(addHours(today, 24)); // Correctly get start of tomorrow
-  const now = new Date(); // Get current time once for mock data generation
-
-  // Mock Data
-  return [
-     { id: 'n_app1', clientName: 'Gael Miller', service: { id: 'haircut', name: 'Haircut', duration: 30, price: 25 }, date: today, time: format(addHours(now, 0.5), 'HH:mm') }, // Upcoming soon
-     { id: 'n_app2', clientName: 'Pedro Wilson', service: { id: 'beard_trim', name: 'Beard Trim', duration: 20, price: 15 }, date: today, time: format(addHours(now, 2), 'HH:mm') }, // Today later
-     { id: 'n_app3', clientName: 'Ivan Taylor', service: { id: 'haircut_beard', name: 'Haircut & Beard Trim', duration: 50, price: 35 }, date: today, time: format(addHours(now, 4), 'HH:mm') }, // Today much later
-     { id: 'n_app4', clientName: 'Juan Anderson', service: { id: 'shave', name: 'Hot Towel Shave', duration: 40, price: 30 }, date: tomorrow, time: '10:00' }, // Tomorrow
-     { id: 'n_app5', clientName: 'Diego Garcia', service: { id: 'haircut', name: 'Haircut', duration: 30, price: 25 }, date: today, time: format(addHours(now, -1), 'HH:mm') }, // Past today
-     { id: 'n_app6', clientName: 'Jose Hernandez', service: { id: 'haircut', name: 'Haircut', duration: 30, price: 25 }, date: today, time: format(addHours(now, 0.1), 'HH:mm') }, // Very Soon
-  ].sort((a, b) => {
-      const dateTimeA = parse(a.time, 'HH:mm', a.date);
-      const dateTimeB = parse(b.time, 'HH:mm', b.date);
-      return dateTimeA.getTime() - dateTimeB.getTime();
-    });
-}
+import { getClientAppointments } from '@/lib/storage'; // Import getClientAppointments from storage
+import { formatTime } from '@/lib/date-utils'; // Import formatTime utility
 
 
 interface NotificationsPanelProps {
@@ -68,12 +43,13 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
     // Only run if currentTime is set (i.e., after hydration)
     if (currentTime) {
         setIsLoading(true);
-        getAllBarberAppointments(barberId)
-          .then(fetchedAppointments => {
-            setAllAppointments(fetchedAppointments); // Store all fetched appointments
+        try {
+            // Directly fetch appointments from local storage
+            const appointmentsFromStorage = getClientAppointments();
+            setAllAppointments(appointmentsFromStorage); // Store all fetched appointments
 
             // Filter for upcoming (within the next hour from currentTime)
-            const upcoming = fetchedAppointments.filter(app => {
+            const upcoming = appointmentsFromStorage.filter(app => {
               const appDateTime = parse(app.time, 'HH:mm', app.date);
               const diff = differenceInMinutes(appDateTime, currentTime);
               return isAfter(appDateTime, currentTime) && diff <= 60; // Ensure it's in the future
@@ -82,14 +58,22 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
 
             // Filter for today's remaining appointments from currentTime
             const todayStart = startOfDay(currentTime);
-            const daily = fetchedAppointments.filter(app =>
+            const daily = appointmentsFromStorage.filter(app =>
               isSameDay(app.date, todayStart) &&
               isAfter(parse(app.time, 'HH:mm', app.date), currentTime) // Only future appointments today
             );
             setDailyAppointments(daily);
-          })
-          .catch(error => console.error("Failed to fetch appointments for notifications:", error))
-          .finally(() => setIsLoading(false));
+
+
+        } catch (error) {
+            console.error("Failed to fetch appointments for notifications:", error);
+            setAllAppointments([]);
+            setUpcomingAppointments([]);
+            setDailyAppointments([]);
+        }
+         finally {
+          setIsLoading(false);
+        }
     } else {
       // If currentTime is null (before hydration), keep loading true
        setIsLoading(true);
