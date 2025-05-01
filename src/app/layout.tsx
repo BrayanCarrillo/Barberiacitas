@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+// Corrected import for Geist fonts
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 import './globals.css';
@@ -6,17 +7,10 @@ import { Header } from '@/components/layout/header';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 
-// Initialize fonts by calling the imported functions
-// Place initialization outside the component function
-const geistSans = GeistSans({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = GeistMono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
+// Font objects are directly used, not called as functions.
+// Their properties like `.variable` are accessed later.
+const geistSans = GeistSans;
+const geistMono = GeistMono;
 
 export const metadata: Metadata = {
   title: 'BarberEase',
@@ -33,7 +27,8 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn(geistSans.variable, geistMono.variable)} // Apply variables here
+      // Use the .variable property from the font objects
+      className={cn(geistSans.variable, geistMono.variable)}
     >
       <body
         className={cn(
