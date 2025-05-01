@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist_Sans, Geist_Mono } from 'geist/font'; // Corrected import for Geist fonts
 import './globals.css';
 import { Header } from '@/components/layout/header';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 
-const geistSans = Geist({
+const geistSans = Geist_Sans({
   variable: '--font-geist-sans',
   subsets: ['latin'],
 });

@@ -5,7 +5,7 @@ import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
-import { addDays, format, isBefore } from 'date-fns';
+import { addDays, format, isBefore, startOfDay } from 'date-fns'; // Added startOfDay
 import { CalendarIcon, Clock, Scissors } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
