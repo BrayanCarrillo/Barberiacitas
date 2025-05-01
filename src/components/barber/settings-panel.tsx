@@ -28,6 +28,7 @@ import type { BarberSettings } from '@/types';
 import { PlusCircle, Save, Trash2, Clock } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { getBarberSettingsFromStorage, saveBarberSettingsToStorage } from '@/lib/settings-storage'; // Import storage functions
 
 // Time format validation (HH:MM in 24-hour format)
 const timeStringSchema = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)");
@@ -36,38 +37,47 @@ const settingsSchema = z.object({
   workHours: z.object({
     start: timeStringSchema,
     end: timeStringSchema,
+  }).refine(data => data.start < data.end, {
+    message: "Work end time must be after start time.",
+    path: ["end"], // Attach error to the 'end' field
   }),
   breakTimes: z.array(z.object({
     start: timeStringSchema,
     end: timeStringSchema,
+  }).refine(data => data.start < data.end, {
+      message: "Break end time must be after start time.",
+      path: ["end"],
   })),
   lunchBreak: z.object({
     start: timeStringSchema,
     end: timeStringSchema,
+  }).refine(data => data.start < data.end, {
+      message: "Lunch end time must be after start time.",
+      path: ["end"],
   }),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
-// Mock function to get current settings (replace with API call)
-async function getBarberSettings(barberId: string): Promise<BarberSettings> {
-  console.log(`Fetching settings for barber ${barberId}`);
-  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
-  // Return default/mock settings
-  return {
-    workHours: { start: '09:00', end: '17:00' },
-    breakTimes: [{ start: '11:00', end: '11:15' }],
-    lunchBreak: { start: '12:30', end: '13:00' },
-  };
-}
+// // Mock function to get current settings (replace with API call)
+// async function getBarberSettings(barberId: string): Promise<BarberSettings> {
+//   console.log(`Fetching settings for barber ${barberId}`);
+//   await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+//   // Return default/mock settings
+//   return {
+//     workHours: { start: '09:00', end: '17:00' },
+//     breakTimes: [{ start: '11:00', end: '11:15' }],
+//     lunchBreak: { start: '12:30', end: '13:00' },
+//   };
+// }
 
-// Mock function to save settings (replace with API call)
-async function saveBarberSettings(barberId: string, settings: BarberSettings): Promise<boolean> {
-  console.log(`Saving settings for barber ${barberId}:`, settings);
-   await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-  // Simulate success/failure
-  return Math.random() > 0.1; // 90% success rate
-}
+// // Mock function to save settings (replace with API call)
+// async function saveBarberSettings(barberId: string, settings: BarberSettings): Promise<boolean> {
+//   console.log(`Saving settings for barber ${barberId}:`, settings);
+//    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+//   // Simulate success/failure
+//   return Math.random() > 0.1; // 90% success rate
+// }
 
 interface SettingsPanelProps {
   barberId: string;
@@ -77,24 +87,36 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(true);
    const [isSaving, setIsSaving] = React.useState(false);
+   const [isClient, setIsClient] = React.useState(false);
+
+   React.useEffect(() => {
+       setIsClient(true); // Component has mounted on client
+       setIsLoading(false); // Assume loading is done once client check passes
+   }, []);
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
-    defaultValues: async () => {
-      setIsLoading(true);
-      try {
-        const settings = await getBarberSettings(barberId);
-        return settings;
-      } catch (error) {
-        console.error("Failed to load settings:", error);
-        toast({ title: "Error", description: "Could not load settings.", variant: "destructive" });
-        // Return safe defaults on error
-        return { workHours: { start: '09:00', end: '17:00' }, breakTimes: [], lunchBreak: { start: '12:00', end: '13:00' } };
-      } finally {
-        setIsLoading(false);
-      }
-    }
+    // Load default values synchronously from localStorage on client-side
+    defaultValues: isClient ? getBarberSettingsFromStorage(barberId) : {
+        // Provide server-side safe defaults or empty values
+         workHours: { start: '09:00', end: '17:00' },
+         breakTimes: [],
+         lunchBreak: { start: '12:00', end: '13:00' },
+    },
+     // Re-initialize form when isClient becomes true and defaultValues are fetched
+     shouldUnregister: false, // Keep registered fields even if they temporarily disappear
   });
+
+   // Effect to reset form once isClient is true and data is available
+   React.useEffect(() => {
+     if (isClient) {
+       console.log("SettingsPanel: Client mounted, resetting form with stored data.");
+       const storedSettings = getBarberSettingsFromStorage(barberId);
+       form.reset(storedSettings);
+       setIsLoading(false); // Ensure loading is false after reset
+     }
+   }, [isClient, barberId, form.reset]); // form.reset added
+
 
    const { fields: breakFields, append: appendBreak, remove: removeBreak } = useFieldArray({
     control: form.control,
@@ -102,10 +124,12 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
   });
 
 
-  async function onSubmit(data: SettingsFormValues) {
+  function onSubmit(data: SettingsFormValues) {
+    if (!isClient) return; // Don't submit on server
+
     setIsSaving(true);
     try {
-      const success = await saveBarberSettings(barberId, data);
+      const success = saveBarberSettingsToStorage(barberId, data);
       if (success) {
         toast({
           title: 'Settings Saved',
@@ -113,7 +137,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
         });
          form.reset(data); // Update form state with saved data
       } else {
-         throw new Error("Failed to save settings on the server.");
+         throw new Error("Failed to save settings to local storage.");
       }
     } catch (error) {
       console.error("Failed to save settings:", error);
@@ -170,7 +194,8 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
    );
 
 
-   if (isLoading) {
+   // Show skeleton during SSR or before client has mounted
+   if (!isClient || isLoading) {
     return renderSkeleton();
   }
 
@@ -317,7 +342,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
 
           </CardContent>
           <CardFooter>
-            <Button type="submit" disabled={isSaving}>
+            <Button type="submit" disabled={isSaving || !isClient}>
                <Save className="mr-2 h-4 w-4" />
               {isSaving ? 'Saving...' : 'Save Schedule'}
             </Button>
