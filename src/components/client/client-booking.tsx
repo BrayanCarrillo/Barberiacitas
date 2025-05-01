@@ -5,7 +5,7 @@ import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, isBefore, startOfDay } from 'date-fns'; // Removed isSameDay import alias as we use the one from date-utils
+import { addMinutes, isBefore, parse, startOfDay, setHours, setMinutes } from 'date-fns';
 import { CalendarIcon, Clock, Scissors, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -40,10 +40,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { addClientAppointment } from '@/lib/storage';
+import { addClientAppointment, getClientAppointments } from '@/lib/storage';
+import { getBarberSettingsFromStorage } from '@/lib/settings-storage'; // Import settings fetcher
 import { cn } from '@/lib/utils';
-import { formatDate, formatTime, isSameDay } from '@/lib/date-utils'; // Use isSameDay from date-utils
-import type { Service, Appointment, TimeSlot } from '@/types';
+import { formatDate, formatTime, isSameDay } from '@/lib/date-utils';
+import type { Service, Appointment, TimeSlot, BarberSettings } from '@/types';
 import { Skeleton } from '../ui/skeleton';
 
 
@@ -55,69 +56,116 @@ const services: Service[] = [
   { id: 'shave', name: 'Hot Towel Shave', duration: 40, price: 30 },
 ];
 
-// Mock function to get available slots (replace with actual API call)
-async function getAvailableSlotsForDate(date: Date, serviceDuration: number): Promise<TimeSlot[]> {
-   console.log(`Fetching slots for ${format(date, 'yyyy-MM-dd')} with duration ${serviceDuration}min`);
-   // Simulate API delay
-   await new Promise(resolve => setTimeout(resolve, 300));
+// Helper to parse HH:mm time string relative to a given date
+function parseTimeString(timeStr: string, date: Date): Date {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    if (isNaN(hours) || isNaN(minutes)) {
+        console.warn(`Invalid time string format encountered: ${timeStr}. Using midnight.`);
+        return setHours(setMinutes(startOfDay(date), 0), 0); // Default to midnight on error
+    }
+    return setHours(setMinutes(startOfDay(date), minutes), hours);
+}
 
-    const slots: TimeSlot[] = [];
-    const startHour = 9; // Barber starts at 9 AM
-    const endHour = 17; // Barber ends at 5 PM
-    const lunchStartHour = 12;
-    const lunchEndHour = 13;
-    const intervalMinutes = 15; // Check availability every 15 minutes
-    const now = new Date(); // Get current time
-
-    const selectedDayStart = startOfDay(date); // Get the start of the selected day for comparison
-    const isToday = isSameDay(selectedDayStart, startOfDay(now)); // Check if the selected date is today
-
-    for (let hour = startHour; hour < endHour; hour++) {
-        for (let minute = 0; minute < 60; minute += intervalMinutes) {
-            const slotTime = new Date(selectedDayStart); // Start with the beginning of the selected day
-            slotTime.setHours(hour, minute, 0, 0); // Set the specific hour and minute
-
-            // Skip if slot is during lunch break
-            if (hour >= lunchStartHour && hour < lunchEndHour) continue;
-
-            // Skip if slot ends after work hours (considering service duration)
-            const endTime = new Date(slotTime.getTime() + serviceDuration * 60000);
-            if (endTime.getHours() > endHour || (endTime.getHours() === endHour && endTime.getMinutes() > 0)) continue; // Allow ending exactly at endHour
-
-             // Check if end time falls into lunch
-            if (endTime.getHours() >= lunchStartHour && endTime.getHours() < lunchEndHour && !(hour === lunchStartHour && minute === 0)) continue;
-
-            let isAvailable = true; // Default to available
-
-            // Check 1: Is the slot in the past for today?
-            if (isToday && isBefore(slotTime, now)) {
-                 isAvailable = false;
-            } else {
-                // Check 2: Simulate random unavailability ONLY for future/other day slots
-                 if (Math.random() <= 0.3) { // 30% chance of being unavailable
-                    isAvailable = false;
-                 }
-            }
-
-            const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-            slots.push({ time: timeString, available: isAvailable });
+// Helper to check if a time range overlaps with any break/lunch times
+function isOverlappingWithBreaks(
+    slotStart: Date,
+    slotEnd: Date,
+    lunchBreak: { start: Date; end: Date },
+    breakTimes: { start: Date; end: Date }[]
+): boolean {
+    // Check overlap with lunch
+    if (slotStart < lunchBreak.end && slotEnd > lunchBreak.start) {
+        return true;
+    }
+    // Check overlap with other breaks
+    for (const breakTime of breakTimes) {
+        if (slotStart < breakTime.end && slotEnd > breakTime.start) {
+            return true;
         }
     }
-
-     // Remove duplicates potentially caused by interval logic and sort
-     const uniqueSlotsMap = new Map<string, TimeSlot>();
-     slots.forEach(slot => {
-       // Keep the first status encountered for a specific start time.
-       if (!uniqueSlotsMap.has(slot.time)) {
-         uniqueSlotsMap.set(slot.time, slot);
-       }
-     });
-     const uniqueSlots = Array.from(uniqueSlotsMap.values())
-                          .sort((a, b) => a.time.localeCompare(b.time));
+    return false;
+}
 
 
-    console.log(`Generated ${uniqueSlots.length} unique slots for ${format(date, 'yyyy-MM-dd')}, ${uniqueSlots.filter(s => s.available).length} available.`);
-    return uniqueSlots;
+// Function to get available slots, now using BarberSettings
+async function getAvailableSlotsForDate(
+    date: Date,
+    serviceDuration: number,
+    settings: BarberSettings,
+    existingAppointments: Appointment[]
+): Promise<TimeSlot[]> {
+    console.log(`Fetching slots for ${format(date, 'yyyy-MM-dd')} with duration ${serviceDuration}min using settings:`, settings);
+    // Simulate API delay if needed
+    // await new Promise(resolve => setTimeout(resolve, 300));
+
+    const slots: TimeSlot[] = [];
+    const intervalMinutes = 15; // Check availability every 15 minutes
+    const now = new Date(); // Get current time
+    const selectedDayStart = startOfDay(date);
+    const isToday = isSameDay(selectedDayStart, startOfDay(now));
+
+    // Parse settings times relative to the selected date
+    const workStart = parseTimeString(settings.workHours.start, selectedDayStart);
+    const workEnd = parseTimeString(settings.workHours.end, selectedDayStart);
+    const lunchStart = parseTimeString(settings.lunchBreak.start, selectedDayStart);
+    const lunchEnd = parseTimeString(settings.lunchBreak.end, selectedDayStart);
+    const breaks = settings.breakTimes.map(b => ({
+        start: parseTimeString(b.start, selectedDayStart),
+        end: parseTimeString(b.end, selectedDayStart),
+    }));
+
+     // Filter existing appointments for the selected date
+     const appointmentsOnDate = existingAppointments.filter(app => isSameDay(app.date, selectedDayStart));
+
+    let currentTime = new Date(workStart);
+
+    while (isBefore(currentTime, workEnd)) {
+        const slotStartTime = new Date(currentTime);
+        const slotEndTime = addMinutes(slotStartTime, serviceDuration);
+
+        let isAvailable = true;
+
+        // 1. Check if slot END goes past work end time
+        if (isBefore(workEnd, slotEndTime)) {
+            isAvailable = false;
+            // console.log(`Slot ${format(slotStartTime, 'HH:mm')} unavailable: Ends after work`);
+        }
+
+        // 2. Check if the slot overlaps with lunch or breaks
+        if (isAvailable && isOverlappingWithBreaks(slotStartTime, slotEndTime, { start: lunchStart, end: lunchEnd }, breaks)) {
+            isAvailable = false;
+             // console.log(`Slot ${format(slotStartTime, 'HH:mm')} unavailable: Overlaps break/lunch`);
+        }
+
+        // 3. Check if the slot is in the past (only if it's today)
+        if (isAvailable && isToday && isBefore(slotStartTime, now)) {
+            isAvailable = false;
+             // console.log(`Slot ${format(slotStartTime, 'HH:mm')} unavailable: Is in the past`);
+        }
+
+         // 4. Check if the slot overlaps with an existing appointment
+         if (isAvailable) {
+            for (const existingApp of appointmentsOnDate) {
+                const existingStart = parseTimeString(existingApp.time, selectedDayStart);
+                const existingEnd = addMinutes(existingStart, existingApp.service.duration);
+                if (slotStartTime < existingEnd && slotEndTime > existingStart) {
+                    isAvailable = false;
+                    // console.log(`Slot ${format(slotStartTime, 'HH:mm')} unavailable: Overlaps existing appointment at ${format(existingStart, 'HH:mm')}`);
+                    break; // No need to check other appointments for this slot
+                }
+            }
+        }
+
+
+        const timeString = format(slotStartTime, 'HH:mm');
+        slots.push({ time: timeString, available: isAvailable });
+
+        // Move to the next potential slot time
+        currentTime = addMinutes(currentTime, intervalMinutes);
+    }
+
+    console.log(`Generated ${slots.length} slots for ${format(date, 'yyyy-MM-dd')}, ${slots.filter(s => s.available).length} available.`);
+    return slots;
 };
 
 
@@ -137,10 +185,55 @@ export function ClientBooking() {
   const [isLoadingSlots, setIsLoadingSlots] = React.useState(false);
   const [isClient, setIsClient] = React.useState(false); // State to track client-side mount
   const [calendarOpen, setCalendarOpen] = React.useState(false); // State for calendar popover
+  const [barberSettings, setBarberSettings] = React.useState<BarberSettings | null>(null); // State for settings
+  const [existingAppointments, setExistingAppointments] = React.useState<Appointment[]>([]); // State for existing appointments
 
    React.useEffect(() => {
     setIsClient(true); // Set to true once component mounts on client
-  }, []);
+     // Fetch barber settings and existing appointments on mount
+     const settings = getBarberSettingsFromStorage("barber123"); // Assuming a fixed barber ID for client view
+     const appointments = getClientAppointments(); // Fetch all stored appointments initially
+     setBarberSettings(settings);
+     setExistingAppointments(appointments);
+
+     // Add listener for settings changes
+     const handleSettingsChange = (event: Event) => {
+         if (event instanceof CustomEvent && event.detail?.barberId === "barber123") {
+            console.log("ClientBooking: Detected barber settings change, updating state.");
+            setBarberSettings(event.detail.settings);
+            // Refetch slots if date and service are already selected
+             form.trigger(['date', 'serviceId']); // Trigger validation which re-runs the effect
+         }
+     };
+     window.addEventListener('barberSettingsChanged', handleSettingsChange);
+
+      // Add listener for storage changes (new/cancelled appointments)
+      const handleStorageChange = (event: StorageEvent) => {
+        if (event.key === 'barberEaseClientAppointments' || event.key === null) {
+           console.log("ClientBooking: Detected storage change, updating appointments.");
+           setExistingAppointments(getClientAppointments());
+           // Refetch slots if date and service are already selected
+           form.trigger(['date', 'serviceId']);
+        }
+      };
+      window.addEventListener('storage', handleStorageChange);
+
+      // Listen for custom event dispatched from client booking itself (less critical now with storage listener)
+      const handleAppointmentBooked = () => {
+           console.log("ClientBooking: Custom 'appointmentbooked' event received, updating.");
+           setExistingAppointments(getClientAppointments());
+           form.trigger(['date', 'serviceId']);
+      }
+      window.addEventListener('appointmentbooked', handleAppointmentBooked);
+
+
+     return () => {
+         window.removeEventListener('barberSettingsChanged', handleSettingsChange);
+         window.removeEventListener('storage', handleStorageChange);
+         window.removeEventListener('appointmentbooked', handleAppointmentBooked);
+     };
+
+  }, []); // Runs only once on mount
 
   const form = useForm<BookingFormValues>({
     resolver: zodResolver(bookingFormSchema),
@@ -159,24 +252,26 @@ export function ClientBooking() {
 
   // Fetch available slots when date or service changes
   React.useEffect(() => {
-     if (selectedDateWatcher && selectedService && isClient) { // Ensure runs only on client
+     // Ensure runs only on client and settings are loaded
+     if (selectedDateWatcher && selectedService && barberSettings && isClient) {
       setIsLoadingSlots(true);
       setAvailableSlots([]); // Clear previous slots immediately
       form.resetField('time', { defaultValue: '' }); // Reset time when date or service changes
 
       // Use a timeout to allow UI to update before potentially long fetch
        const timerId = setTimeout(() => {
-           getAvailableSlotsForDate(selectedDateWatcher, selectedService.duration)
+           getAvailableSlotsForDate(selectedDateWatcher, selectedService.duration, barberSettings, existingAppointments)
             .then(slots => {
                 console.log("Received slots:", slots);
                 setAvailableSlots(slots);
                 // Check if any slots are available
                  const hasAvailableSlots = slots.some(slot => slot.available);
                  if (!hasAvailableSlots) {
+                   // Use toast to inform user if no slots are available
                    toast({
                     title: "No Slots Available",
-                    description: `No time slots are currently available for ${formatDate(selectedDateWatcher)}. Please try another date.`,
-                    variant: "default", // Use default variant, not destructive
+                    description: `No time slots are currently available for ${formatDate(selectedDateWatcher)}. Please try another date or service.`,
+                    variant: "default",
                     duration: 5000,
                    });
                  }
@@ -198,11 +293,12 @@ export function ClientBooking() {
        return () => clearTimeout(timerId); // Cleanup timeout if dependencies change quickly
 
     } else {
-       setAvailableSlots([]); // Clear slots if date/service is not selected
-       // Don't set loading if date/service not selected
+       setAvailableSlots([]); // Clear slots if date/service/settings not ready
+       // Don't set loading if dependencies not met
        if (isLoadingSlots) setIsLoadingSlots(false);
     }
-  }, [selectedDateWatcher, selectedService, form.resetField, toast, isClient]); // Removed form from deps, added resetField
+   // Ensure dependencies cover all required data for fetching slots
+  }, [selectedDateWatcher, selectedService, barberSettings, existingAppointments, isClient, form.resetField, toast, isLoadingSlots]); // Added missing dependencies
 
 
   function onSubmit(data: BookingFormValues) {
@@ -244,7 +340,8 @@ export function ClientBooking() {
       });
       form.reset(); // Reset the entire form
       setAvailableSlots([]); // Explicitly clear slots as well
-      // Trigger events to notify other components
+      setExistingAppointments(getClientAppointments()); // Update local state immediately
+      // Trigger events to notify other components (redundant with storage listener but kept for safety)
        window.dispatchEvent(new CustomEvent('appointmentbooked'));
        window.dispatchEvent(new StorageEvent('storage', { key: 'barberEaseClientAppointments' }));
 
@@ -336,7 +433,8 @@ export function ClientBooking() {
                             "w-full pl-3 text-left font-normal",
                             !field.value && "text-muted-foreground"
                           )}
-                          disabled={!isClient} // Disable until client side mount
+                          // Disable until client side mount AND settings are loaded
+                          disabled={!isClient || !barberSettings}
                         >
                           {field.value ? (
                             formatDate(field.value) // Use formatDate utility
@@ -347,21 +445,22 @@ export function ClientBooking() {
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    {isClient && ( // Conditionally render PopoverContent
+                     {/* Conditionally render PopoverContent only on client */}
+                    {isClient && (
                        <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
                           selected={field.value}
                           onSelect={(date) => {
                              if (date) { // Ensure date is not undefined
-                                field.onChange(date);
+                                field.onChange(startOfDay(date)); // Ensure we use the start of the day
                              } else {
                                 field.onChange(undefined); // Explicitly set undefined if no date selected
                              }
                              setCalendarOpen(false); // Close popover on date select
                           }}
                            disabled={(date) =>
-                             isBefore(date, startOfDay(new Date())) // Disable past dates
+                             isBefore(startOfDay(date), startOfDay(new Date())) // Disable past dates including today if already past
                            }
                            initialFocus={!field.value} // Focus only if no date selected
                            month={field.value || new Date()} // Start calendar at selected month or current
@@ -375,8 +474,8 @@ export function ClientBooking() {
               )}
             />
 
-            {/* Only show Time Slot section if date AND service are selected */}
-            {selectedDateWatcher && selectedService && (
+            {/* Only show Time Slot section if date AND service AND settings are selected */}
+            {selectedDateWatcher && selectedService && barberSettings && (
               <FormField
                 control={form.control}
                 name="time"
@@ -442,5 +541,3 @@ export function ClientBooking() {
     </Card>
   );
 }
-
-    
