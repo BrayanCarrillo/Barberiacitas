@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -12,6 +13,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter, // Added CardFooter import
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -59,9 +61,9 @@ const daysOfWeekMap: { [key: number]: keyof Omit<BarberSettings, 'rentAmount' | 
 
 
 // Helper to parse HH:mm time string relative to a given date
-function parseTimeString(timeStr: string, date: Date): Date {
+function parseTimeString(timeStr: string | undefined, date: Date): Date {
     if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) {
-        console.warn(`Invalid time string format encountered: ${timeStr}. Using midnight.`);
+        console.warn(`Invalid or missing time string format encountered: ${timeStr}. Using midnight.`);
         return setHours(setMinutes(startOfDay(date), 0), 0); // Default to midnight on error
     }
     const [hours, minutes] = timeStr.split(':').map(Number);
@@ -239,6 +241,7 @@ const setBookingStatus = (date: string, status: boolean) => {
 
   // Function to retrieve booking status from local storage
   const getBookingStatus = (date: string): boolean => {
+    if (typeof window === 'undefined') return false; // Guard for SSR
     try {
       const status = localStorage.getItem(`bookingStatus_${date}`);
       return status ? JSON.parse(status) : false;
@@ -260,6 +263,7 @@ export function ClientBooking() {
   const [bookableItems, setBookableItems] = React.useState<BookableItem[]>([]); // State for services/combos
   const [allServices, setAllServices] = React.useState<Service[]>([]); // Need services for combo duration calculation
   const [allCombos, setAllCombos] = React.useState<Combo[]>([]); // Also need combos for selection
+  const [selectedDateHasBooked, setSelectedDateHasBooked] = React.useState(false); // Track if current date selection has a booking
 
   // Booking limit
   const maxBookingsPerDay = 2;
@@ -382,28 +386,31 @@ export function ClientBooking() {
       console.log(`ClientBooking Effect: Fetching slots for ${formatDate(selectedDateWatcher)} and item ${selectedItem.name} (Duration: ${selectedItemDuration})`);
 
         const selectedDateString = formatDate(selectedDateWatcher);
-        const bookingStatus = getBookingStatus(selectedDateString);
+        const hasBooked = getBookingStatus(selectedDateString);
+        setSelectedDateHasBooked(hasBooked); // Update state for the selected date
 
-         if (bookingStatus) {
+         if (hasBooked) {
+             console.log(`ClientBooking Effect: Already booked for ${selectedDateString}`);
             toast({
-               title: "Booking Already Made",
-               description: "You have already booked an appointment for this day.",
-               variant: "warning",
+               title: "Booking Limit",
+               description: "You have already reached your booking limit for this day.",
+               variant: "default",
             });
             setIsLoadingSlots(false);
-            return;
+            return; // Stop fetching slots
          }
 
 
-       // Check if booking limit has been exceeded
+       // Check if booking limit has been exceeded based on runtime appointments
        if (hasExceededBookingLimit(existingAppointments, selectedDateWatcher, maxBookingsPerDay)) {
+           console.log(`ClientBooking Effect: Booking limit exceeded for ${selectedDateString} (runtime check)`);
           toast({
              title: "Booking Limit Exceeded",
              description: `You have reached the maximum limit of ${maxBookingsPerDay} bookings for this day.`,
              variant: "warning",
           });
           setIsLoadingSlots(false);
-          return;
+          return; // Stop fetching slots
        }
 
       getAvailableSlotsForDate(selectedDateWatcher, selectedItemDuration, barberSettings, existingAppointments)
@@ -440,6 +447,7 @@ export function ClientBooking() {
             console.warn("ClientBooking Effect: Selected item has zero duration, cannot fetch slots.");
         }
        setAvailableSlots([]); // Clear slots if conditions aren't met
+       setSelectedDateHasBooked(false); // Reset booking status when date/item changes
     }
      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDateWatcher, selectedItemId, selectedItemDuration, barberSettings, existingAppointments, isClient, toast]);
@@ -451,18 +459,18 @@ export function ClientBooking() {
      if (!isClient) return;
 
        const selectedDateString = formatDate(data.date);
-         const bookingStatus = getBookingStatus(selectedDateString);
+       const hasAlreadyBooked = getBookingStatus(selectedDateString);
 
-         if (bookingStatus) {
+         if (hasAlreadyBooked) {
             toast({
-               title: "Booking Already Made",
-               description: "You have already booked an appointment for this day.",
-               variant: "warning",
+               title: "Booking Limit",
+               description: "You have already reached your booking limit for this day.",
+               variant: "default",
             });
             return;
          }
 
-      // Check if booking limit has been exceeded *before* submitting
+      // Check if booking limit has been exceeded *before* submitting (runtime check)
       if (hasExceededBookingLimit(existingAppointments, data.date, maxBookingsPerDay)) {
          toast({
             title: "Booking Limit Exceeded",
@@ -525,6 +533,7 @@ export function ClientBooking() {
       },
       date: data.date,
       time: data.time,
+      status: 'completed', // Default status
     };
 
     try {
@@ -534,14 +543,16 @@ export function ClientBooking() {
         title: 'Appointment Booked!',
         description: `${newAppointment.clientName}, your ${newAppointment.bookedItem.name} is scheduled for ${formatDate(data.date)} at ${formatTime(data.time)}.`,
       });
-      form.reset();
-      setAvailableSlots([]);
-      const updatedAppointments = getClientAppointments();
-      console.log("Updating existingAppointments state after booking:", updatedAppointments);
-      setExistingAppointments(updatedAppointments);
 
-        // After successful booking, store the booking status in local storage
-        setBookingStatus(selectedDateString, true);
+       // After successful booking, store the booking status in local storage
+       setBookingStatus(selectedDateString, true);
+       setSelectedDateHasBooked(true); // Update state
+
+       form.reset();
+       setAvailableSlots([]);
+       const updatedAppointments = getClientAppointments();
+       console.log("Updating existingAppointments state after booking:", updatedAppointments);
+       setExistingAppointments(updatedAppointments);
 
        window.dispatchEvent(new CustomEvent('appointmentbooked'));
        window.dispatchEvent(new StorageEvent('storage', { key: 'barberEaseClientAppointments' }));
@@ -704,13 +715,14 @@ export function ClientBooking() {
                      <Select
                        onValueChange={field.onChange}
                        value={field.value}
-                       disabled={isLoadingSlots || !isClient || (!isLoadingSlots && availableSlots.filter(slot => slot.available).length === 0)}
+                       disabled={isLoadingSlots || !isClient || selectedDateHasBooked || (!isLoadingSlots && availableSlots.filter(slot => slot.available).length === 0)}
                       >
                       <FormControl>
                         <SelectTrigger>
                            <Clock className="mr-2 h-4 w-4" />
                            <SelectValue placeholder={
                               isLoadingSlots ? "Loading slots..." :
+                              selectedDateHasBooked ? "Booking limit reached for this day" :
                               (availableSlots.filter(slot => slot.available).length > 0 ? "Select a time slot" : "No slots available")
                            } />
                         </SelectTrigger>
@@ -748,7 +760,7 @@ export function ClientBooking() {
              <Button
               type="submit"
               className="w-full"
-              disabled={!form.formState.isValid || isLoadingSlots || !isClient || (!isLoadingSlots && availableSlots.filter(slot => slot.available).length === 0) || selectedItemDuration <= 0}
+              disabled={!form.formState.isValid || isLoadingSlots || !isClient || selectedDateHasBooked || (!isLoadingSlots && availableSlots.filter(slot => slot.available).length === 0) || selectedItemDuration <= 0}
               >
                {isLoadingSlots ? 'Loading...' : 'Book Appointment'}
             </Button>
