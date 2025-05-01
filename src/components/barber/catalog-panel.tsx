@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from 'react';
@@ -252,7 +251,7 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
   return (
     <Tabs defaultValue="services" className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold">Service & Product Catalog</h2>
+        <h2 className="text-2xl font-semibold">Service &amp; Product Catalog</h2>
         <TabsList>
           <TabsTrigger value="services"><Scissors className="mr-2 h-4 w-4" />Services</TabsTrigger>
           <TabsTrigger value="combos"><Star className="mr-2 h-4 w-4" />Combos</TabsTrigger>
@@ -336,7 +335,7 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
                          <FormField control={comboForm.control} name="name" render={({ field }) => (
                              <FormItem>
                                  <FormLabel>Combo Name</FormLabel>
-                                 <FormControl><Input placeholder="e.g., Haircut & Beard Deluxe" {...field} /></FormControl>
+                                 <FormControl><Input placeholder="e.g., Haircut &amp; Beard Deluxe" {...field} /></FormControl>
                                  <FormMessage />
                              </FormItem>
                          )} />
@@ -555,4 +554,3 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
     </Tabs>
   );
 }
-```
