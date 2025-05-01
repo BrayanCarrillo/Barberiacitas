@@ -22,6 +22,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription, // Import FormDescription
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import {
@@ -220,3 +221,4 @@ export function RentPanel({ barberId }: RentPanelProps) {
     </div>
   );
 }
+
