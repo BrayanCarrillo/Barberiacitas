@@ -26,6 +26,7 @@ export default function RootLayout({
     // Add suppressHydrationWarning to html tag if necessary for specific libraries causing mismatches
     <html lang="en" suppressHydrationWarning={true} className={cn(geistSans.variable, geistMono.variable)}>
       <body
+        suppressHydrationWarning={true} // Add suppression here as well
         className={cn(
           'min-h-screen bg-background font-sans antialiased flex flex-col'
           // Font family is now set globally via html tag and CSS variables
