@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from 'react';
-import { format, startOfDay, isSameDay, parse, isAfter, isBefore } from 'date-fns';
+import { format, startOfDay, isSameDay, parse, isBefore } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
 import {
   Card,
@@ -11,48 +11,48 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import type { Appointment, Service } from '@/types';
+import type { Appointment } from '@/types';
+import { getClientAppointments } from '@/lib/storage'; // Import function to get appointments from storage
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { CalendarIcon, Clock, User, Scissors } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { formatTime } from '@/lib/date-utils'; // Import formatTime utility
 
-// Mock function to get appointments (replace with actual API call)
-async function getBarberAppointments(barberId: string, date: Date): Promise<Appointment[]> {
-  console.log(`Fetching appointments for barber ${barberId} on ${format(date, 'yyyy-MM-dd')}`);
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 700));
+// Function to get appointments filtered by date from localStorage
+function getBarberAppointmentsForDate(date: Date): Appointment[] {
+  console.log(`Fetching appointments from storage for date ${format(date, 'yyyy-MM-dd')}`);
+  try {
+    const allAppointments = getClientAppointments(); // Fetch all client appointments
 
-  // Mock Data - In a real app, filter appointments for the specific date
-  const mockAppointments: Appointment[] = [
-    { id: 'app1', clientName: 'Alice Smith', service: { id: 'haircut', name: 'Haircut', duration: 30, price: 25 }, date: new Date(2024, 6, 25), time: '10:00' },
-    { id: 'app2', clientName: 'Bob Johnson', service: { id: 'beard_trim', name: 'Beard Trim', duration: 20, price: 15 }, date: new Date(2024, 6, 25), time: '11:30' },
-    { id: 'app3', clientName: 'Charlie Brown', service: { id: 'haircut_beard', name: 'Haircut & Beard Trim', duration: 50, price: 35 }, date: new Date(2024, 6, 26), time: '14:00' },
-    { id: 'app4', clientName: 'David Williams', service: { id: 'shave', name: 'Hot Towel Shave', duration: 40, price: 30 }, date: new Date(), time: '09:30' }, // Today
-     { id: 'app5', clientName: 'Eve Davis', service: { id: 'haircut', name: 'Haircut', duration: 30, price: 25 }, date: new Date(), time: '15:00' }, // Today
-  ];
-
-  // Filter for the selected date and sort by time
-  return mockAppointments
-    .filter(app => isSameDay(app.date, date))
-    .sort((a, b) => {
-      const timeA = parse(a.time, 'HH:mm', new Date());
-      const timeB = parse(b.time, 'HH:mm', new Date());
-      return timeA.getTime() - timeB.getTime();
-    });
+    // Filter for the selected date and sort by time
+    return allAppointments
+      .filter(app => isSameDay(app.date, date))
+      .sort((a, b) => {
+        // Ensure time exists before parsing
+        const timeAStr = a.time || '00:00';
+        const timeBStr = b.time || '00:00';
+        const timeA = parse(timeAStr, 'HH:mm', new Date());
+        const timeB = parse(timeBStr, 'HH:mm', new Date());
+        return timeA.getTime() - timeB.getTime();
+      });
+  } catch (error) {
+      console.error("Error fetching or filtering appointments from storage:", error);
+      return []; // Return empty array on error
+  }
 }
 
 
 interface CalendarViewProps {
-  barberId: string;
+  barberId: string; // Keep barberId prop for potential future backend integration
 }
 
 export function CalendarView({ barberId }: CalendarViewProps) {
-  const [selectedDate, setSelectedDate] = React.useState<Date | null>(null); // Initialize with null
+  const [selectedDate, setSelectedDate] = React.useState<Date | null>(null);
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true); // Start loading initially
-  const [currentClientTime, setCurrentClientTime] = React.useState<Date | null>(null); // State for client time
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [currentClientTime, setCurrentClientTime] = React.useState<Date | null>(null);
 
   // Set initial date and client time on mount (client-side only)
   React.useEffect(() => {
@@ -61,33 +61,68 @@ export function CalendarView({ barberId }: CalendarViewProps) {
   }, []);
 
   // Fetch appointments when selectedDate changes (and is not null)
-  React.useEffect(() => {
-    if (selectedDate) {
+  const fetchAndSetAppointments = React.useCallback(() => {
+     if (selectedDate) {
       setIsLoading(true);
-      getBarberAppointments(barberId, selectedDate)
-        .then(setAppointments)
-        .catch(error => {
-          console.error("Failed to fetch appointments:", error);
-          // Handle error state, maybe show a toast
-        })
-        .finally(() => setIsLoading(false));
+       try {
+           // Directly use the function that reads from localStorage
+           const appointmentsForDate = getBarberAppointmentsForDate(selectedDate);
+           setAppointments(appointmentsForDate);
+       } catch (error) {
+           console.error("Failed to fetch appointments:", error);
+           setAppointments([]); // Set empty on error
+           // Optionally, show a toast message here
+       } finally {
+          setIsLoading(false);
+       }
     } else {
       // If selectedDate is null (initial state), don't fetch, ensure loading is true
       setIsLoading(true);
       setAppointments([]);
     }
-  }, [selectedDate, barberId]);
+  }, [selectedDate]);
+
+   React.useEffect(() => {
+      fetchAndSetAppointments();
+   }, [fetchAndSetAppointments]);
+
+    // Add listener for storage changes to update the view when a new appointment is booked/cancelled
+    React.useEffect(() => {
+        const handleStorageChange = (event: StorageEvent) => {
+            if (event.key === 'barberEaseClientAppointments' || event.key === null) { // Listen to our key or general storage changes
+                console.log("Storage changed, refetching appointments for barber view...");
+                fetchAndSetAppointments();
+            }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+
+        // Also listen for custom event dispatched from client booking
+        const handleAppointmentBooked = () => {
+            console.log("Custom 'appointmentbooked' event received, refetching...");
+            fetchAndSetAppointments();
+        }
+         window.addEventListener('appointmentbooked', handleAppointmentBooked);
+
+
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('appointmentbooked', handleAppointmentBooked);
+        };
+    }, [fetchAndSetAppointments]); // Depend on the fetching function
+
 
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
       setSelectedDate(startOfDay(date));
     } else {
-      setSelectedDate(null); // Handle undefined case if necessary
+      setSelectedDate(null);
     }
   };
 
   // Show skeleton while initial date/time is being set or appointments are loading
-  if (!selectedDate || !currentClientTime || isLoading) {
+   // Include appointments === null check for initial load before first fetch attempt
+  if (!selectedDate || !currentClientTime || isLoading || appointments === null) {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
         <Card className="lg:col-span-1 flex flex-col">
@@ -96,7 +131,8 @@ export function CalendarView({ barberId }: CalendarViewProps) {
             <CardDescription>Choose a date to view appointments.</CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center items-start pt-0 flex-grow">
-            <Skeleton className="w-[280px] h-[330px]" />
+            {/* Only render Calendar skeleton if selectedDate is not yet set */}
+             {!selectedDate ? <Skeleton className="w-[280px] h-[330px]" /> : <Calendar mode="single" selected={selectedDate} disabled className="p-0"/> }
           </CardContent>
         </Card>
         <Card className="lg:col-span-2 flex flex-col">
@@ -128,7 +164,7 @@ export function CalendarView({ barberId }: CalendarViewProps) {
             mode="single"
             selected={selectedDate}
             onSelect={handleDateSelect}
-            className="p-0" // Remove default padding to fit card better
+            className="p-0"
             // Potentially highlight dates with appointments
             // modifiers={{ booked: datesWithAppointments }}
             // modifiersClassNames={{ booked: "bg-primary/10 rounded-full" }}
@@ -142,14 +178,14 @@ export function CalendarView({ barberId }: CalendarViewProps) {
           <CardDescription>Details of scheduled appointments for the selected date.</CardDescription>
         </CardHeader>
         <CardContent className="flex-grow flex flex-col min-h-0">
-          <ScrollArea className="flex-grow pr-4 -mr-4"> {/* Added negative margin to compensate padding */}
+          <ScrollArea className="flex-grow pr-4 -mr-4">
             {appointments.length === 0 ? (
               <p className="text-muted-foreground text-center py-10">No appointments scheduled for this date.</p>
             ) : (
               <ul className="space-y-4">
                 {appointments.map((app, index) => {
-                   const appointmentTime = parse(app.time, 'HH:mm', selectedDate);
-                   const isPast = isBefore(appointmentTime, currentClientTime); // Use client time state
+                   const appointmentTime = parse(app.time || '00:00', 'HH:mm', selectedDate);
+                   const isPast = isBefore(appointmentTime, currentClientTime);
 
                   return (
                   <React.Fragment key={app.id}>
@@ -167,7 +203,8 @@ export function CalendarView({ barberId }: CalendarViewProps) {
                            </div>
                            <div className="flex items-center text-sm text-muted-foreground gap-2">
                              <Clock className="h-4 w-4" />
-                             <span>{format(appointmentTime, 'p')} ({app.service.duration} min)</span>
+                              {/* Use formatTime utility */}
+                             <span>{formatTime(app.time)} ({app.service.duration} min)</span>
                            </div>
                          </div>
                        </div>
