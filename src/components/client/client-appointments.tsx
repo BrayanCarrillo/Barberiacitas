@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -42,7 +43,7 @@ export function ClientAppointments() {
         // Sort appointments by date and time
         const sortedAppointments = storedAppointments.sort((a, b) => {
           const dateA = new Date(a.date);
-          if (a.time) { // Check if time is defined
+          if (a.time) {
             const [hoursA, minutesA] = a.time.split(':').map(Number);
             if (!isNaN(hoursA) && !isNaN(minutesA)) {
                 dateA.setHours(hoursA, minutesA);
@@ -50,7 +51,7 @@ export function ClientAppointments() {
           }
 
           const dateB = new Date(b.date);
-           if (b.time) { // Check if time is defined
+           if (b.time) {
              const [hoursB, minutesB] = b.time.split(':').map(Number);
              if (!isNaN(hoursB) && !isNaN(minutesB)) {
                 dateB.setHours(hoursB, minutesB);
@@ -63,8 +64,8 @@ export function ClientAppointments() {
         console.error("Error fetching appointments:", error);
         setAppointments([]); // Set to empty array on error
          toast({
-            title: "Error al cargar citas",
-            description: "No se pudieron cargar tus citas guardadas.",
+            title: "Error loading appointments",
+            description: "Could not load your saved appointments.",
             variant: "destructive",
         });
     } finally {
@@ -76,20 +77,23 @@ export function ClientAppointments() {
   React.useEffect(() => {
     fetchAppointments();
 
-    // Define the handler for storage changes
     const handleStorageChange = (event: StorageEvent) => {
-        // Check if the change happened to our specific key
-        if (event.key === 'barberEaseClientAppointments') {
+        if (event.key === 'barberEaseClientAppointments' || event.key === null) { // Listen for own changes or broad changes
             fetchAppointments();
         }
     };
-
-    // Add event listener
     window.addEventListener('storage', handleStorageChange);
 
-    // Remove event listener on cleanup
+     // Also listen for custom event dispatched from client booking
+     const handleAppointmentBooked = () => {
+        fetchAppointments();
+     }
+     window.addEventListener('appointmentbooked', handleAppointmentBooked);
+
+
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+       window.removeEventListener('appointmentbooked', handleAppointmentBooked);
     };
   }, [fetchAppointments]);
 
@@ -99,13 +103,15 @@ export function ClientAppointments() {
       removeClientAppointment(appointmentId);
       fetchAppointments(); // Refresh the list
       toast({
-        title: 'Cita cancelada',
-        description: 'Tu cita ha sido cancelada exitosamente.',
+        title: 'Appointment cancelled',
+        description: 'Your appointment has been successfully cancelled.',
       });
+       // Dispatch event to notify other components (like ClientBooking)
+       window.dispatchEvent(new StorageEvent('storage', { key: 'barberEaseClientAppointments' }));
     } catch (error) {
        toast({
-        title: "Error al cancelar",
-        description: "No se pudo cancelar la cita. Por favor intenta nuevamente.",
+        title: "Cancellation Error",
+        description: "Could not cancel the appointment. Please try again.",
         variant: "destructive",
       });
     }
@@ -131,52 +137,53 @@ export function ClientAppointments() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Tus citas</CardTitle>
-        <CardDescription>Consulta tus próximas citas agendadas.</CardDescription>
+        <CardTitle>Your Appointments</CardTitle>
+        <CardDescription>View your upcoming scheduled appointments.</CardDescription>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[400px] pr-4">
-          {isLoading || appointments === null ? ( // Show skeleton if loading or appointments are null
+          {isLoading || appointments === null ? (
             renderSkeleton()
           ) : appointments.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No tienes citas próximas.</p>
+            <p className="text-muted-foreground text-center py-8">You have no upcoming appointments.</p>
           ) : (
             <ul className="space-y-4">
               {appointments.map((app, index) => (
                 <React.Fragment key={app.id}>
                   <li className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
                      <div className="space-y-1 flex-grow">
-                       <p className="font-semibold">{app.service.name}</p>
+                       {/* Use bookedItem details */}
+                       <p className="font-semibold">{app.bookedItem.name}</p>
                        <div className="flex items-center text-sm text-muted-foreground gap-2">
                          <Calendar className="h-4 w-4" />
                          <span>{format(app.date, 'EEE, MMM d, yyyy')}</span>
                        </div>
                        <div className="flex items-center text-sm text-muted-foreground gap-2">
                          <Clock className="h-4 w-4" />
-                          {/* Use formatTime utility */}
                          <span>{formatTime(app.time)}</span>
                        </div>
-                      <p className="text-sm text-muted-foreground">Price: ${app.service.price}</p>
+                      {/* Use bookedItem price */}
+                      <p className="text-sm text-muted-foreground">Price: ${app.bookedItem.price.toFixed(2)}</p>
                      </div>
                      <AlertDialog>
                        <AlertDialogTrigger asChild>
                           <Button variant="outline" size="sm" className="w-full sm:w-auto">
                            <Trash2 className="h-4 w-4 mr-2" />
-                           Cancelar
+                           Cancel
                          </Button>
                        </AlertDialogTrigger>
                        <AlertDialogContent>
                          <AlertDialogHeader>
-                           <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                           <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                            <AlertDialogDescription>
-                              {/* Use formatTime utility */}
-                             Esta acción no se puede deshacer. Esto cancelará permanentemente tu cita para {app.service.name} el {format(app.date, 'PPP')} a las {formatTime(app.time)}.
+                              {/* Use bookedItem name */}
+                             This action cannot be undone. This will permanently cancel your appointment for {app.bookedItem.name} on {format(app.date, 'PPP')} at {formatTime(app.time)}.
                            </AlertDialogDescription>
                          </AlertDialogHeader>
                          <AlertDialogFooter>
-                           <AlertDialogCancel>Mantener cita</AlertDialogCancel>
+                           <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
                            <AlertDialogAction onClick={() => handleCancelAppointment(app.id)}>
-                             Sí, cancelar
+                             Yes, cancel
                            </AlertDialogAction>
                          </AlertDialogFooter>
                        </AlertDialogContent>

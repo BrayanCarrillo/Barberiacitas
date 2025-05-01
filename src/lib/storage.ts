@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Appointment } from '@/types';
@@ -12,6 +13,12 @@ function parseAppointment(appData: Omit<Appointment, 'date'> & { date: string })
       console.warn("Invalid date found in stored appointment:", appData);
       return null; // Skip invalid date entry
     }
+     // Basic validation for bookedItem structure
+     if (!appData.bookedItem || typeof appData.bookedItem.id !== 'string' || typeof appData.bookedItem.name !== 'string' || typeof appData.bookedItem.duration !== 'number' || typeof appData.bookedItem.price !== 'number') {
+          console.warn("Invalid bookedItem structure in stored appointment:", appData);
+          return null; // Skip invalid entry
+     }
+
     return {
       ...appData,
       date: date,
@@ -48,20 +55,33 @@ export function addClientAppointment(appointment: Appointment): void {
     return;
   }
   try {
+     // Validate bookedItem before saving
+     if (!appointment.bookedItem || typeof appointment.bookedItem.id !== 'string' || typeof appointment.bookedItem.name !== 'string' || typeof appointment.bookedItem.duration !== 'number' || typeof appointment.bookedItem.price !== 'number') {
+          console.error("Attempted to save appointment with invalid bookedItem:", appointment);
+          throw new Error("Invalid appointment data: Missing or invalid booked item details.");
+     }
+
     const existingAppointments = getClientAppointments();
     // Convert Date object back to ISO string for storage
-    // Ensure clientName is included, even if undefined initially (though schema requires it now)
     const appointmentToStore = {
         ...appointment,
         clientName: appointment.clientName ?? 'Unknown Client', // Fallback just in case
         date: appointment.date.toISOString(),
+        // Ensure bookedItem is correctly structured
+        bookedItem: {
+            id: appointment.bookedItem.id,
+            type: appointment.bookedItem.type,
+            name: appointment.bookedItem.name,
+            duration: appointment.bookedItem.duration,
+            price: appointment.bookedItem.price,
+        }
     };
     const updatedAppointments = [...existingAppointments, appointmentToStore];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedAppointments));
   } catch (error) {
     console.error("Error adding appointment to local storage:", error);
-     // Optionally throw error or show user feedback
-     throw new Error("Failed to save appointment.");
+     // Re-throw or handle as appropriate
+     throw error instanceof Error ? error : new Error("Failed to save appointment.");
   }
 }
 
@@ -79,11 +99,19 @@ export function removeClientAppointment(appointmentId: string): void {
         ...app,
         clientName: app.clientName, // Keep the clientName
         date: app.date.toISOString(),
+        // Ensure bookedItem is stored correctly
+         bookedItem: {
+            id: app.bookedItem.id,
+            type: app.bookedItem.type,
+            name: app.bookedItem.name,
+            duration: app.bookedItem.duration,
+            price: app.bookedItem.price,
+        }
      }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appointmentsToStore));
   } catch (error) {
      console.error("Error removing appointment from local storage:", error);
-     // Optionally throw error or show user feedback
       throw new Error("Failed to cancel appointment.");
   }
 }
+```

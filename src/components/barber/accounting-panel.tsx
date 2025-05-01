@@ -1,7 +1,8 @@
+
 "use client";
 
 import * as React from 'react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, subWeeks, isWithinInterval } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, subWeeks, isWithinInterval, parseISO, compareAsc } from 'date-fns'; // Added parseISO, compareAsc
 import { DollarSign, Users, Calendar as CalendarIconLucide } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import {
@@ -19,41 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Appointment } from '@/types';
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
-
-// Mock function to get ALL completed appointments (replace with actual API call)
-// In a real app, fetch completed appointments with their service price.
-async function getCompletedAppointments(barberId: string): Promise<Appointment[]> {
-  console.log(`Fetching completed appointments for accounting for barber ${barberId}`);
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 800));
-
-  // Generate more mock data spanning several weeks/months for better chart demo
-  const mockData: Appointment[] = [];
-  const today = new Date();
-  for (let i = 0; i < 90; i++) { // Simulate data for the last 90 days
-    const date = new Date(today);
-    date.setDate(today.getDate() - i);
-    const appointmentsToday = Math.floor(Math.random() * 5) + 1; // 1-5 appointments per day
-    for (let j = 0; j < appointmentsToday; j++) {
-      const serviceType = Math.random();
-      let service;
-      if (serviceType < 0.4) service = { id: 'haircut', name: 'Corte de pelo', duration: 30, price: 25 };
-      else if (serviceType < 0.7) service = { id: 'beard_trim', name: 'Recorte de barba', duration: 20, price: 15 };
-      else if (serviceType < 0.9) service = { id: 'haircut_beard', name: 'Corte de pelo y barba', duration: 50, price: 35 };
-      else service = { id: 'shave', name: 'Afeitado con toalla caliente', duration: 40, price: 30 };
-
-      mockData.push({
-        id: `acc_app_${i}_${j}`,
-        clientName: `Client ${i}-${j}`,
-        service: service,
-        date: date,
-        time: `${Math.floor(Math.random() * 8) + 9}:00` // Random time between 9 AM and 4 PM
-      });
-    }
-  }
-  return mockData;
-}
+import { Skeleton } from '@/components/ui/skeleton';
+import { getClientAppointments } from '@/lib/storage'; // Fetch from storage
 
 interface AccountingPanelProps {
   barberId: string;
@@ -85,8 +53,9 @@ function getDateRange(period: TimePeriod): DateRange {
 }
 
 interface DailyRevenue {
-  name: string; // Date formatted string
+  name: string; // Date formatted string (e.g., "Jul 4")
   total: number;
+  dateObj: Date; // Keep original date for sorting
 }
 
 export function AccountingPanel({ barberId }: AccountingPanelProps) {
@@ -95,41 +64,71 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
   const [timePeriod, setTimePeriod] = React.useState<TimePeriod>('this_month');
   const [isLoading, setIsLoading] = React.useState(true);
 
-  React.useEffect(() => {
-    setIsLoading(true);
-    getCompletedAppointments(barberId)
-      .then(data => {
-        setAllAppointments(data);
-      })
-      .catch(error => console.error("Failed to fetch completed appointments:", error))
-       .finally(() => setIsLoading(false));
-  }, [barberId]);
+  const fetchAndFilterAppointments = React.useCallback(() => {
+     setIsLoading(true);
+     try {
+       const appointmentsFromStorage = getClientAppointments(); // Get all appointments
+       setAllAppointments(appointmentsFromStorage);
 
-  React.useEffect(() => {
-     if (!isLoading) {
-        const range = getDateRange(timePeriod);
-        const filtered = allAppointments.filter(app =>
-          isWithinInterval(app.date, { start: range.start, end: range.end })
-        );
-        setFilteredAppointments(filtered);
+       const range = getDateRange(timePeriod);
+       const filtered = appointmentsFromStorage.filter(app =>
+         isWithinInterval(app.date, { start: range.start, end: range.end })
+       );
+       setFilteredAppointments(filtered);
+     } catch (error) {
+        console.error("Failed to fetch or filter appointments:", error);
+        setAllAppointments([]);
+        setFilteredAppointments([]);
+     } finally {
+        setIsLoading(false);
      }
-  }, [timePeriod, allAppointments, isLoading]);
+  }, [timePeriod]); // Removed barberId dependency as we fetch all
 
 
-   const totalRevenue = filteredAppointments.reduce((sum, app) => sum + app.service.price, 0);
-   const totalClients = filteredAppointments.length; // Simple count, assumes unique clients per appointment slot
+  React.useEffect(() => {
+    fetchAndFilterAppointments();
 
-   const dailyRevenueData: DailyRevenue[] = React.useMemo(() => {
-    const revenueMap = new Map<string, number>();
+     // Listen for changes triggered by booking/cancellation
+     const handleStorageChange = (event: StorageEvent) => {
+        if (event.key === 'barberEaseClientAppointments' || event.key === null) {
+            fetchAndFilterAppointments();
+        }
+     };
+     const handleAppointmentBooked = () => fetchAndFilterAppointments();
+
+     window.addEventListener('storage', handleStorageChange);
+     window.addEventListener('appointmentbooked', handleAppointmentBooked);
+
+     return () => {
+        window.removeEventListener('storage', handleStorageChange);
+        window.removeEventListener('appointmentbooked', handleAppointmentBooked);
+     };
+  }, [fetchAndFilterAppointments]); // Only depends on the fetch function now
+
+   // Use bookedItem.price for revenue calculation
+   const totalRevenue = filteredAppointments.reduce((sum, app) => sum + app.bookedItem.price, 0);
+   const totalClients = filteredAppointments.length;
+
+   const dailyRevenueData: Omit<DailyRevenue, 'dateObj'>[] = React.useMemo(() => {
+    const revenueMap = new Map<string, { total: number; dateObj: Date }>();
+
     filteredAppointments.forEach(app => {
-      const dateStr = format(app.date, 'MMM d'); // Format for X-axis label
-      revenueMap.set(dateStr, (revenueMap.get(dateStr) || 0) + app.service.price);
+       const dateStr = format(app.date, 'yyyy-MM-dd'); // Use ISO date string as key
+       const current = revenueMap.get(dateStr) || { total: 0, dateObj: app.date };
+       // Use bookedItem.price
+       current.total += app.bookedItem.price;
+       revenueMap.set(dateStr, current);
     });
-     // Convert map to array and sort by date (though map iteration order is often sufficient)
-     return Array.from(revenueMap.entries())
-       .map(([name, total]) => ({ name, total }))
-       .sort((a, b) => new Date(a.name).getTime() - new Date(b.name).getTime()); // Ensure correct order if needed
-  }, [filteredAppointments]);
+
+     // Convert map to array, sort by date, and format name for display
+     return Array.from(revenueMap.values())
+        .sort((a, b) => compareAsc(a.dateObj, b.dateObj)) // Sort by actual date object
+        .map(data => ({
+            name: format(data.dateObj, 'MMM d'), // Format name for chart label
+            total: data.total,
+            // dateObj: data.dateObj // We don't strictly need dateObj in the final array for the chart
+        }));
+   }, [filteredAppointments]);
 
 
    const renderLoadingState = () => (
@@ -154,7 +153,6 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
              <Skeleton className="h-3 w-28 mt-1" />
          </CardContent>
        </Card>
-       {/* Add skeletons for other cards if needed */}
        <div className="lg:col-span-4 pt-6">
          <Card>
             <CardHeader>
@@ -213,7 +211,6 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
              <p className="text-xs text-muted-foreground">Clients served in selected period</p>
           </CardContent>
         </Card>
-         {/* Add more summary cards if needed (e.g., Average Revenue per Client) */}
       </div>
 
       <Card className="lg:col-span-4">
@@ -222,6 +219,11 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
           <CardDescription>Daily revenue for the selected period.</CardDescription>
         </CardHeader>
         <CardContent className="pl-2">
+          {dailyRevenueData.length === 0 ? (
+             <div className="h-[350px] flex items-center justify-center text-muted-foreground">
+                No revenue data for this period.
+             </div>
+           ) : (
            <ResponsiveContainer width="100%" height={350}>
             <BarChart data={dailyRevenueData}>
               <XAxis
@@ -243,12 +245,15 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                  contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }}
                  labelStyle={{ color: 'hsl(var(--foreground))' }}
                  itemStyle={{ color: 'hsl(var(--foreground))' }}
+                  formatter={(value: number) => `$${value.toFixed(2)}`}
                />
               <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          )}
         </CardContent>
       </Card>
     </div>
   );
 }
+```
