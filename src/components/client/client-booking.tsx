@@ -1,10 +1,11 @@
+
 "use client";
 
 import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, isBefore, startOfDay, isSameDay as isSameDate } from 'date-fns'; // Added startOfDay and renamed isSameDay
+import { format, isBefore, startOfDay } from 'date-fns'; // Removed isSameDay import alias as we use the one from date-utils
 import { CalendarIcon, Clock, Scissors, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -58,7 +59,7 @@ const services: Service[] = [
 async function getAvailableSlotsForDate(date: Date, serviceDuration: number): Promise<TimeSlot[]> {
    console.log(`Fetching slots for ${format(date, 'yyyy-MM-dd')} with duration ${serviceDuration}min`);
    // Simulate API delay
-   await new Promise(resolve => setTimeout(resolve, 300)); // Reduced delay slightly
+   await new Promise(resolve => setTimeout(resolve, 300));
 
     const slots: TimeSlot[] = [];
     const startHour = 9; // Barber starts at 9 AM
@@ -66,9 +67,10 @@ async function getAvailableSlotsForDate(date: Date, serviceDuration: number): Pr
     const lunchStartHour = 12;
     const lunchEndHour = 13;
     const intervalMinutes = 15; // Check availability every 15 minutes
-    const now = new Date(); // Get current time to disable past slots for today
+    const now = new Date(); // Get current time
 
     const selectedDayStart = startOfDay(date); // Get the start of the selected day for comparison
+    const isToday = isSameDay(selectedDayStart, startOfDay(now)); // Check if the selected date is today
 
     for (let hour = startHour; hour < endHour; hour++) {
         for (let minute = 0; minute < 60; minute += intervalMinutes) {
@@ -85,33 +87,45 @@ async function getAvailableSlotsForDate(date: Date, serviceDuration: number): Pr
              // Check if end time falls into lunch
             if (endTime.getHours() >= lunchStartHour && endTime.getHours() < lunchEndHour && !(hour === lunchStartHour && minute === 0)) continue;
 
-            // Simulate some unavailable slots randomly (e.g., existing appointments)
-            let isAvailable = Math.random() > 0.3; // 70% chance of being available
+            let isAvailable = true; // Default to available
 
-            // Disable past time slots ONLY for the current day
-            // Use isSameDay utility for robust comparison
-            if (isSameDay(selectedDayStart, startOfDay(now)) && isBefore(slotTime, now)) {
+            // Check 1: Is the slot in the past for today?
+            if (isToday && isBefore(slotTime, now)) {
                  isAvailable = false;
-             }
+            } else {
+                // Check 2: Simulate random unavailability ONLY for future/other day slots
+                 if (Math.random() <= 0.3) { // 30% chance of being unavailable
+                    isAvailable = false;
+                 }
+            }
 
             const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
             slots.push({ time: timeString, available: isAvailable });
         }
     }
-    // Remove duplicates potentially caused by interval logic, favoring earlier availability status
-    const uniqueSlots = Array.from(new Map(slots.map(slot => [slot.time, slot])).values());
-    // Sort slots chronologically
-    uniqueSlots.sort((a, b) => a.time.localeCompare(b.time));
-    console.log(`Generated ${uniqueSlots.length} slots for ${format(date, 'yyyy-MM-dd')}`);
+
+     // Remove duplicates potentially caused by interval logic and sort
+     const uniqueSlotsMap = new Map<string, TimeSlot>();
+     slots.forEach(slot => {
+       // Keep the first status encountered for a specific start time.
+       if (!uniqueSlotsMap.has(slot.time)) {
+         uniqueSlotsMap.set(slot.time, slot);
+       }
+     });
+     const uniqueSlots = Array.from(uniqueSlotsMap.values())
+                          .sort((a, b) => a.time.localeCompare(b.time));
+
+
+    console.log(`Generated ${uniqueSlots.length} unique slots for ${format(date, 'yyyy-MM-dd')}, ${uniqueSlots.filter(s => s.available).length} available.`);
     return uniqueSlots;
 };
 
 
 const bookingFormSchema = z.object({
-  clientName: z.string().min(2, { message: 'Please enter your full name (minimum 2 characters).' }).max(50, { message: 'Name cannot exceed 50 characters.'}), // Added client name validation
-  serviceId: z.string({ required_error: 'Please select a service.' }).min(1, { message: 'Please select a service.' }), // Ensure non-empty string
+  clientName: z.string().min(2, { message: 'Please enter your full name (minimum 2 characters).' }).max(50, { message: 'Name cannot exceed 50 characters.'}),
+  serviceId: z.string({ required_error: 'Please select a service.' }).min(1, { message: 'Please select a service.' }),
   date: z.date({ required_error: 'Please select a date.' }),
-  time: z.string({ required_error: 'Please select a time slot.' }).min(1, { message: 'Please select a time slot.' }), // Ensure non-empty string
+  time: z.string({ required_error: 'Please select a time slot.' }).min(1, { message: 'Please select a time slot.' }),
 });
 
 
@@ -339,8 +353,12 @@ export function ClientBooking() {
                           mode="single"
                           selected={field.value}
                           onSelect={(date) => {
-                            field.onChange(date);
-                            setCalendarOpen(false); // Close popover on date select
+                             if (date) { // Ensure date is not undefined
+                                field.onChange(date);
+                             } else {
+                                field.onChange(undefined); // Explicitly set undefined if no date selected
+                             }
+                             setCalendarOpen(false); // Close popover on date select
                           }}
                            disabled={(date) =>
                              isBefore(date, startOfDay(new Date())) // Disable past dates
