@@ -49,9 +49,11 @@ export function getBarberSettingsFromStorage(barberId: string): BarberSettings {
           parsedData.monday && parsedData.tuesday && parsedData.wednesday &&
           parsedData.thursday && parsedData.friday && parsedData.saturday &&
           parsedData.sunday &&
-          parsedData.workHours && parsedData.lunchBreak && Array.isArray(parsedData.breakTimes)) {
+          parsedData.lunchBreak && Array.isArray(parsedData.breakTimes)) { // Removed workHours check
           console.log("getBarberSettings: Parsed data seems valid:", parsedData);
-          return parsedData;
+          // Ensure all day schedules exist, merge defaults if needed (optional, for robustness)
+          const mergedSettings = { ...defaultSettings, ...parsedData };
+          return mergedSettings;
       } else {
           console.warn("getBarberSettings: Invalid settings data found in storage. Returning default settings.");
            saveBarberSettingsToStorage(barberId, defaultSettings);
@@ -85,18 +87,20 @@ export function saveBarberSettingsToStorage(barberId: string, settings: BarberSe
    console.log("saveBarberSettings: Attempting to save to key:", storageKey, "with data:", settings);
 
   try {
+     // Validate the structure before saving
      if (!settings ||
         typeof settings.rentAmount !== 'number' ||
         !settings.monday || !settings.tuesday || !settings.wednesday ||
         !settings.thursday || !settings.friday || !settings.saturday ||
         !settings.sunday ||
-        !settings.lunchBreak || !Array.isArray(settings.breakTimes)) {
+        !settings.lunchBreak || !Array.isArray(settings.breakTimes)) { // Removed workHours check
         console.error("saveBarberSettings: Attempted to save invalid settings object:", settings);
         return false;
      }
     const dataToStore = JSON.stringify(settings);
     localStorage.setItem(storageKey, dataToStore);
     console.log("saveBarberSettings: Settings saved successfully.");
+     // Dispatch custom event to notify other components (like ClientBooking)
      window.dispatchEvent(new CustomEvent('barberSettingsChanged', { detail: { barberId, settings } }));
     return true;
   } catch (error) {
@@ -104,3 +108,5 @@ export function saveBarberSettingsToStorage(barberId: string, settings: BarberSe
     return false;
   }
 }
+
+    

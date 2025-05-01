@@ -4,7 +4,7 @@ import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { addMinutes, isBefore, parse, startOfDay, setHours, setMinutes, format as formatDateFn } from 'date-fns'; // Renamed format import
+import { addMinutes, isBefore, parse, startOfDay, setHours, setMinutes, format as formatDateFn, getDay } from 'date-fns'; // Renamed format import, added getDay
 import { CalendarIcon, Clock, Scissors, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -55,6 +55,17 @@ const services: Service[] = [
   { id: 'shave', name: 'Hot Towel Shave', duration: 40, price: 30 },
 ];
 
+const daysOfWeekMap: { [key: number]: keyof Omit<BarberSettings, 'rentAmount' | 'breakTimes' | 'lunchBreak'> } = {
+  0: 'sunday',
+  1: 'monday',
+  2: 'tuesday',
+  3: 'wednesday',
+  4: 'thursday',
+  5: 'friday',
+  6: 'saturday',
+};
+
+
 // Helper to parse HH:mm time string relative to a given date
 function parseTimeString(timeStr: string, date: Date): Date {
     const [hours, minutes] = timeStr.split(':').map(Number);
@@ -100,10 +111,24 @@ async function getAvailableSlotsForDate(
     const now = new Date(); // Get current time
     const selectedDayStart = startOfDay(date);
     const isToday = isSameDay(selectedDayStart, startOfDay(now));
+    const dayOfWeekIndex = getDay(selectedDayStart); // 0 for Sunday, 1 for Monday, etc.
+    const dayKey = daysOfWeekMap[dayOfWeekIndex];
+    const dailySchedule = settings[dayKey];
+
+    console.log(`Checking schedule for ${dayKey}:`, dailySchedule);
+
+
+    // 1. Check if the barber is available on this day of the week
+    if (!dailySchedule || !dailySchedule.available || !dailySchedule.start || !dailySchedule.end) {
+        console.log(`Barber not available on ${dayKey}.`);
+        return []; // Return empty array if not available or schedule is incomplete
+    }
+
 
     // Parse settings times relative to the selected date
-    const workStart = parseTimeString(settings.workHours.start, selectedDayStart);
-    const workEnd = parseTimeString(settings.workHours.end, selectedDayStart);
+    // Use the specific day's schedule now
+    const workStart = parseTimeString(dailySchedule.start, selectedDayStart);
+    const workEnd = parseTimeString(dailySchedule.end, selectedDayStart);
     const lunchStart = parseTimeString(settings.lunchBreak.start, selectedDayStart);
     const lunchEnd = parseTimeString(settings.lunchBreak.end, selectedDayStart);
     const breaks = settings.breakTimes.map(b => ({
@@ -116,32 +141,34 @@ async function getAvailableSlotsForDate(
 
     let currentTime = new Date(workStart);
 
+    console.log(`Work hours for ${dayKey}: ${formatTime(dailySchedule.start)} - ${formatTime(dailySchedule.end)}`);
+
+
     while (isBefore(currentTime, workEnd)) {
         const slotStartTime = new Date(currentTime);
         const slotEndTime = addMinutes(slotStartTime, serviceDuration);
 
         let isAvailable = true;
 
-        // 1. Check if slot END goes past work end time
+        // 2. Check if slot END goes past work end time for the specific day
         if (isBefore(workEnd, slotEndTime)) {
             isAvailable = false;
             // console.log(`Slot ${formatTime(formatDateFn(slotStartTime, 'HH:mm'))} unavailable: Ends after work (${formatTime(formatDateFn(workEnd, 'HH:mm'))})`);
         }
 
-        // 2. Check if the slot overlaps with lunch or breaks
+        // 3. Check if the slot overlaps with lunch or breaks
         if (isAvailable && isOverlappingWithBreaks(slotStartTime, slotEndTime, { start: lunchStart, end: lunchEnd }, breaks)) {
             isAvailable = false;
             // console.log(`Slot ${formatTime(formatDateFn(slotStartTime, 'HH:mm'))} unavailable: Overlaps break/lunch`);
         }
 
-        // 3. Check if the slot is in the past (only if it's today)
-        // Make sure comparison accounts for the *entire* slot duration
+        // 4. Check if the slot is in the past (only if it's today)
         if (isAvailable && isToday && isBefore(slotStartTime, now)) {
             isAvailable = false;
             // console.log(`Slot ${formatTime(formatDateFn(slotStartTime, 'HH:mm'))} unavailable: Is in the past (Current time: ${formatTime(formatDateFn(now, 'HH:mm'))})`);
         }
 
-         // 4. Check if the slot overlaps with an existing appointment
+         // 5. Check if the slot overlaps with an existing appointment
          if (isAvailable) {
             for (const existingApp of appointmentsOnDate) {
                 // Ensure existingApp.time is valid before parsing
@@ -169,7 +196,7 @@ async function getAvailableSlotsForDate(
         currentTime = addMinutes(currentTime, intervalMinutes);
     }
 
-    console.log(`Generated ${slots.length} slots for ${formatDateFn(date, 'yyyy-MM-dd')}, ${slots.filter(s => s.available).length} available.`);
+    console.log(`Generated ${slots.length} slots for ${formatDateFn(date, 'yyyy-MM-dd')} (${dayKey}), ${slots.filter(s => s.available).length} available.`);
     return slots;
 };
 
@@ -216,9 +243,10 @@ export function ClientBooking() {
 
      // Add listener for settings changes
      const handleSettingsChange = (event: Event) => {
-         if (event instanceof CustomEvent && event.detail?.barberId === "barber123") {
+          const customEvent = event as CustomEvent<{ barberId: string; settings: BarberSettings }>;
+         if (customEvent.detail?.barberId === "barber123") {
             console.log("ClientBooking: Detected barber settings change, updating state.");
-            setBarberSettings(event.detail.settings);
+            setBarberSettings(customEvent.detail.settings);
             // Refetch slots if date and service are already selected
              form.trigger(['date', 'serviceId']); // Trigger validation which re-runs the effect
          }
@@ -306,11 +334,7 @@ export function ClientBooking() {
     } else {
        // console.log("ClientBooking Effect: Conditions not met to fetch slots.", {selectedDateWatcher, selectedService, barberSettings, isClient});
        setAvailableSlots([]); // Clear slots if date/service/settings not ready
-       // Don't set loading if dependencies not met
-       // if (isLoadingSlots) setIsLoadingSlots(false); // Removed this potential state flicker source
     }
-   // Ensure dependencies cover all required data for fetching slots
-   // REMOVED isLoadingSlots from dependency array to prevent potential loops
   }, [selectedDateWatcher, selectedService, barberSettings, existingAppointments, isClient, form.resetField, toast]);
 
 
@@ -361,7 +385,7 @@ export function ClientBooking() {
       setExistingAppointments(updatedAppointments); // Update local state immediately
 
 
-      // Trigger events to notify other components (redundant with storage listener but kept for safety)
+      // Trigger events to notify other components
        window.dispatchEvent(new CustomEvent('appointmentbooked'));
        window.dispatchEvent(new StorageEvent('storage', { key: 'barberEaseClientAppointments' }));
 
@@ -561,3 +585,5 @@ export function ClientBooking() {
     </Card>
   );
 }
+
+    
