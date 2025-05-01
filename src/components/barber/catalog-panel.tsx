@@ -15,6 +15,13 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card"; // Added import for Card components
+import {
     Dialog,
     DialogContent,
     DialogDescription,
@@ -199,6 +206,7 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
   const handleDelete = (type: 'service' | 'product' | 'combo', id: string) => {
     let success = false;
     let itemName = '';
+    let error: unknown = null; // Initialize error variable
     try {
         if (type === 'service') {
             itemName = services.find(s => s.id === id)?.name || 'Service';
@@ -224,7 +232,8 @@ export function CatalogPanel({ barberId }: CatalogPanelProps) {
               throw new Error(`Failed to remove ${type}.`);
           }
       }
-    } catch (error: any) {
+    } catch (err: any) {
+       error = err; // Store the error
        console.error(`Error deleting ${type}:`, error);
        toast({ title: "Error", description: error.message || `Could not remove ${type}.`, variant: "destructive" });
     }
