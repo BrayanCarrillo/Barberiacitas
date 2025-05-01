@@ -13,8 +13,21 @@ export interface Appointment {
   time: string; // e.g., "10:00" (HH:mm)
 }
 
+export interface DailySchedule {
+  available: boolean;
+  start?: string; // HH:mm format, optional if not available
+  end?: string; // HH:mm format, optional if not available
+}
+
 export interface BarberSettings {
-  workHours: { start: string; end: string }; // HH:mm format
+  rentAmount: number;
+  monday: DailySchedule;
+  tuesday: DailySchedule;
+  wednesday: DailySchedule;
+  thursday: DailySchedule;
+  friday: DailySchedule;
+  saturday: DailySchedule;
+  sunday: DailySchedule;
   breakTimes: { start: string; end: string }[]; // HH:mm format
   lunchBreak: { start: string; end: string }; // HH:mm format
 }
@@ -30,3 +43,4 @@ export interface TimeSlot {
 export interface AvailableSlots {
   [date: string]: TimeSlot[];
 }
+

@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { BarberSettings } from '@/types';
@@ -7,9 +6,16 @@ const BARBER_SETTINGS_STORAGE_KEY_PREFIX = 'barberEaseBarberSettings_';
 
 // Default settings if none are found in storage
 export const defaultSettings: BarberSettings = {
-  workHours: { start: '09:00', end: '17:00' },
-  breakTimes: [{ start: '11:00', end: '11:15' }],
-  lunchBreak: { start: '12:30', end: '13:00' },
+    rentAmount: 100,
+    monday: { available: true, start: '09:00', end: '17:00' },
+    tuesday: { available: true, start: '09:00', end: '17:00' },
+    wednesday: { available: true, start: '09:00', end: '17:00' },
+    thursday: { available: true, start: '09:00', end: '17:00' },
+    friday: { available: true, start: '09:00', end: '17:00' },
+    saturday: { available: false },
+    sunday: { available: false },
+    breakTimes: [{ start: '11:00', end: '11:15' }],
+    lunchBreak: { start: '12:30', end: '13:00' },
 };
 
 function getStorageKey(barberId: string): string {
@@ -38,19 +44,22 @@ export function getBarberSettingsFromStorage(barberId: string): BarberSettings {
         console.log("getBarberSettings: Found stored data:", storedData);
       const parsedData = JSON.parse(storedData) as BarberSettings;
       // Basic validation (can be expanded)
-      if (parsedData && parsedData.workHours && parsedData.lunchBreak && Array.isArray(parsedData.breakTimes)) {
+      if (parsedData &&
+          typeof parsedData.rentAmount === 'number' &&
+          parsedData.monday && parsedData.tuesday && parsedData.wednesday &&
+          parsedData.thursday && parsedData.friday && parsedData.saturday &&
+          parsedData.sunday &&
+          parsedData.workHours && parsedData.lunchBreak && Array.isArray(parsedData.breakTimes)) {
           console.log("getBarberSettings: Parsed data seems valid:", parsedData);
           return parsedData;
       } else {
           console.warn("getBarberSettings: Invalid settings data found in storage. Returning default settings.");
-          // Optionally save default settings back to storage here
            saveBarberSettingsToStorage(barberId, defaultSettings);
           return JSON.parse(JSON.stringify(defaultSettings)); // Return deep copy
       }
     } else {
-      // No settings found, return default and save them
       console.log("getBarberSettings: No settings found. Returning default settings and saving them.");
-       saveBarberSettingsToStorage(barberId, defaultSettings); // Save default if none exist
+       saveBarberSettingsToStorage(barberId, defaultSettings);
       return JSON.parse(JSON.stringify(defaultSettings)); // Return deep copy
     }
   } catch (error) {
@@ -76,15 +85,18 @@ export function saveBarberSettingsToStorage(barberId: string, settings: BarberSe
    console.log("saveBarberSettings: Attempting to save to key:", storageKey, "with data:", settings);
 
   try {
-    // Basic validation before saving (can be expanded)
-     if (!settings || !settings.workHours || !settings.lunchBreak || !Array.isArray(settings.breakTimes)) {
+     if (!settings ||
+        typeof settings.rentAmount !== 'number' ||
+        !settings.monday || !settings.tuesday || !settings.wednesday ||
+        !settings.thursday || !settings.friday || !settings.saturday ||
+        !settings.sunday ||
+        !settings.lunchBreak || !Array.isArray(settings.breakTimes)) {
         console.error("saveBarberSettings: Attempted to save invalid settings object:", settings);
         return false;
      }
     const dataToStore = JSON.stringify(settings);
     localStorage.setItem(storageKey, dataToStore);
     console.log("saveBarberSettings: Settings saved successfully.");
-     // Optional: Dispatch an event if other components need to react to settings changes
      window.dispatchEvent(new CustomEvent('barberSettingsChanged', { detail: { barberId, settings } }));
     return true;
   } catch (error) {
@@ -92,4 +104,3 @@ export function saveBarberSettingsToStorage(barberId: string, settings: BarberSe
     return false;
   }
 }
-    

@@ -5,13 +5,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { format, parseISO } from 'date-fns';
-import { CreditCard, DollarSign, History, Banknote } from 'lucide-react';
+import {  DollarSign, History, Banknote } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -22,7 +21,6 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription, // Import FormDescription
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import {
@@ -37,14 +35,11 @@ import { useToast } from '@/hooks/use-toast';
 import { submitRentPayment, getRentPaymentHistory } from '@/services/rent-payment';
 import type { Payment } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { Skeleton } from '@/components/ui/skeleton';
+import { getBarberSettingsFromStorage } from '@/lib/settings-storage';
 
 const rentPaymentSchema = z.object({
   amount: z.coerce.number().positive({ message: 'Amount must be positive.' }),
-  // Add fields for card details if integrating a real payment gateway
-  // cardNumber: z.string().min(1),
-  // expiryDate: z.string().min(1),
-  // cvc: z.string().min(1),
 });
 
 type RentPaymentValues = z.infer<typeof rentPaymentSchema>;
@@ -53,21 +48,26 @@ interface RentPanelProps {
   barberId: string;
 }
 
-const RENT_DUE_AMOUNT = 100; // Example fixed rent amount
-const RENT_DUE_DATE = 1; // Rent due on the 1st of the month
-
 export function RentPanel({ barberId }: RentPanelProps) {
   const { toast } = useToast();
   const [paymentHistory, setPaymentHistory] = React.useState<Payment[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = React.useState(true);
-   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [rentAmount, setRentAmount] = React.useState<number>(0);
 
   const form = useForm<RentPaymentValues>({
     resolver: zodResolver(rentPaymentSchema),
     defaultValues: {
-      amount: RENT_DUE_AMOUNT, // Pre-fill with due amount
+      amount: 0,
     },
   });
+
+  React.useEffect(() => {
+    const settings = getBarberSettingsFromStorage(barberId);
+    setRentAmount(settings.rentAmount || 0);
+    form.reset({ amount: settings.rentAmount || 0 }); // Initialize with stored rent amount
+  }, [barberId, form]);
+
 
   const fetchHistory = React.useCallback(async () => {
     setIsLoadingHistory(true);
@@ -94,8 +94,8 @@ export function RentPanel({ barberId }: RentPanelProps) {
     setIsSubmitting(true);
     const paymentData: Payment = {
       amount: data.amount,
-      date: new Date().toISOString(), // Record current date/time
-      method: 'Online Payment', // Placeholder
+      date: new Date().toISOString(),
+      method: 'Cash', // Hardcoded payment method
     };
 
     try {
@@ -105,8 +105,8 @@ export function RentPanel({ barberId }: RentPanelProps) {
           title: 'Payment Successful',
           description: `Successfully paid $${data.amount.toFixed(2)} towards rent.`,
         });
-        form.reset({ amount: RENT_DUE_AMOUNT }); // Reset form
-        fetchHistory(); // Refresh history
+        form.reset({ amount: rentAmount }); // Reset form to current rent amount
+        fetchHistory();
       } else {
         throw new Error("Payment processing failed.");
       }
@@ -137,7 +137,7 @@ export function RentPanel({ barberId }: RentPanelProps) {
       <Card className="lg:col-span-1">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Banknote className="h-5 w-5"/>Make Rent Payment</CardTitle>
-          <CardDescription>Submit payment for your station rent. Rent is ${RENT_DUE_AMOUNT} due on the {RENT_DUE_DATE}st of each month.</CardDescription>
+          <CardDescription>Submit your cash payment for this month's station rent. Rent is ${rentAmount.toFixed(2)}.</CardDescription>
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -158,18 +158,6 @@ export function RentPanel({ barberId }: RentPanelProps) {
                   </FormItem>
                 )}
               />
-              {/* Add Credit Card fields here if implementing actual payment */}
-               <FormItem>
-                 <FormLabel>Payment Method</FormLabel>
-                 <FormControl>
-                   <Button variant="outline" className="w-full justify-start" disabled>
-                     <CreditCard className="mr-2 h-4 w-4"/> ********4242 (Visa) {/* Placeholder */}
-                   </Button>
-                 </FormControl>
-                 <FormDescription>
-                   Using your saved payment method. {/* Placeholder */}
-                 </FormDescription>
-               </FormItem>
             </CardContent>
             <CardFooter>
                <Button type="submit" className="w-full" disabled={isSubmitting}>
@@ -221,4 +209,3 @@ export function RentPanel({ barberId }: RentPanelProps) {
     </div>
   );
 }
-

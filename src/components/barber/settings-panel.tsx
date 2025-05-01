@@ -27,20 +27,34 @@ import { useToast } from '@/hooks/use-toast';
 import type { BarberSettings } from '@/types';
 import { PlusCircle, Save, Trash2, Clock } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
-import { getBarberSettingsFromStorage, saveBarberSettingsToStorage } from '@/lib/settings-storage'; // Import storage functions
+import { Skeleton } from '@/components/ui/skeleton';
+import { getBarberSettingsFromStorage, saveBarberSettingsToStorage } from '@/lib/settings-storage';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // Time format validation (HH:MM in 24-hour format)
 const timeStringSchema = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)");
 
-const settingsSchema = z.object({
-  workHours: z.object({
-    start: timeStringSchema,
-    end: timeStringSchema,
-  }).refine(data => data.start < data.end, {
+const dailyScheduleSchema = z.object({
+  available: z.boolean(),
+  start: timeStringSchema.optional(),
+  end: timeStringSchema.optional(),
+}).refine(data => !data.available || (data.start !== undefined && data.end !== undefined), {
+  message: "Start and end times are required when the day is available.",
+  path: ["start"], // You can target the error to one of the fields
+}).refine(data => !data.available || (data.start! < data.end!), {
     message: "Work end time must be after start time.",
     path: ["end"], // Attach error to the 'end' field
-  }),
+});
+
+const settingsSchema = z.object({
+  rentAmount: z.number().positive({ message: 'Rent amount must be positive.' }),
+  monday: dailyScheduleSchema,
+  tuesday: dailyScheduleSchema,
+  wednesday: dailyScheduleSchema,
+  thursday: dailyScheduleSchema,
+  friday: dailyScheduleSchema,
+  saturday: dailyScheduleSchema,
+  sunday: dailyScheduleSchema,
   breakTimes: z.array(z.object({
     start: timeStringSchema,
     end: timeStringSchema,
@@ -59,29 +73,21 @@ const settingsSchema = z.object({
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
-// // Mock function to get current settings (replace with API call)
-// async function getBarberSettings(barberId: string): Promise<BarberSettings> {
-//   console.log(`Fetching settings for barber ${barberId}`);
-//   await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
-//   // Return default/mock settings
-//   return {
-//     workHours: { start: '09:00', end: '17:00' },
-//     breakTimes: [{ start: '11:00', end: '11:15' }],
-//     lunchBreak: { start: '12:30', end: '13:00' },
-//   };
-// }
-
-// // Mock function to save settings (replace with API call)
-// async function saveBarberSettings(barberId: string, settings: BarberSettings): Promise<boolean> {
-//   console.log(`Saving settings for barber ${barberId}:`, settings);
-//    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-//   // Simulate success/failure
-//   return Math.random() > 0.1; // 90% success rate
-// }
 
 interface SettingsPanelProps {
   barberId: string;
 }
+
+const daysOfWeek = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+] as const;
+
 
 export function SettingsPanel({ barberId }: SettingsPanelProps) {
   const { toast } = useToast();
@@ -90,32 +96,35 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
    const [isClient, setIsClient] = React.useState(false);
 
    React.useEffect(() => {
-       setIsClient(true); // Component has mounted on client
-       setIsLoading(false); // Assume loading is done once client check passes
+       setIsClient(true);
+       setIsLoading(false);
    }, []);
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
-    // Load default values synchronously from localStorage on client-side
-    defaultValues: isClient ? getBarberSettingsFromStorage(barberId) : {
-        // Provide server-side safe defaults or empty values
-         workHours: { start: '09:00', end: '17:00' },
+    defaultValues: {
+        rentAmount: 0,
+        monday: { available: true, start: '09:00', end: '17:00' },
+        tuesday: { available: true, start: '09:00', end: '17:00' },
+        wednesday: { available: true, start: '09:00', end: '17:00' },
+        thursday: { available: true, start: '09:00', end: '17:00' },
+        friday: { available: true, start: '09:00', end: '17:00' },
+        saturday: { available: false },
+        sunday: { available: false },
          breakTimes: [],
          lunchBreak: { start: '12:00', end: '13:00' },
     },
-     // Re-initialize form when isClient becomes true and defaultValues are fetched
-     shouldUnregister: false, // Keep registered fields even if they temporarily disappear
+     shouldUnregister: false,
   });
 
-   // Effect to reset form once isClient is true and data is available
    React.useEffect(() => {
      if (isClient) {
        console.log("SettingsPanel: Client mounted, resetting form with stored data.");
        const storedSettings = getBarberSettingsFromStorage(barberId);
        form.reset(storedSettings);
-       setIsLoading(false); // Ensure loading is false after reset
+       setIsLoading(false);
      }
-   }, [isClient, barberId, form.reset]); // form.reset added
+   }, [isClient, barberId, form.reset]);
 
 
    const { fields: breakFields, append: appendBreak, remove: removeBreak } = useFieldArray({
@@ -125,7 +134,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
 
 
   function onSubmit(data: SettingsFormValues) {
-    if (!isClient) return; // Don't submit on server
+    if (!isClient) return;
 
     setIsSaving(true);
     try {
@@ -135,7 +144,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
           title: 'Settings Saved',
           description: 'Your schedule has been updated successfully.',
         });
-         form.reset(data); // Update form state with saved data
+         form.reset(data);
       } else {
          throw new Error("Failed to save settings to local storage.");
       }
@@ -158,16 +167,19 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
           <Skeleton className="h-4 w-4/5 mt-1" />
        </CardHeader>
        <CardContent className="space-y-6">
-          {/* Work Hours Skeleton */}
-         <div>
-            <Skeleton className="h-5 w-24 mb-2" />
-            <div className="grid grid-cols-2 gap-4">
-               <Skeleton className="h-10 w-full" />
-               <Skeleton className="h-10 w-full" />
-            </div>
-         </div>
+           <Skeleton className="h-5 w-24 mb-2" />
+            <Skeleton className="h-10 w-full" />
          <Separator/>
-          {/* Lunch Break Skeleton */}
+          {daysOfWeek.map(day => (
+            <div key={day}>
+              <Skeleton className="h-5 w-32 mb-2" />
+              <div className="grid grid-cols-2 gap-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </div>
+          ))}
+         <Separator/>
           <div>
              <Skeleton className="h-5 w-32 mb-2" />
              <div className="grid grid-cols-2 gap-4">
@@ -176,7 +188,6 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
              </div>
           </div>
           <Separator/>
-          {/* Break Times Skeleton */}
          <div>
             <Skeleton className="h-5 w-28 mb-2" />
             <div className="grid grid-cols-3 gap-4 items-end">
@@ -194,7 +205,6 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
    );
 
 
-   // Show skeleton during SSR or before client has mounted
    if (!isClient || isLoading) {
     return renderSkeleton();
   }
@@ -204,43 +214,78 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
     <Card>
       <CardHeader>
         <CardTitle>Work Schedule Settings</CardTitle>
-        <CardDescription>Adjust your daily work hours, lunch, and break times.</CardDescription>
+        <CardDescription>Adjust your daily work hours, rent amount, lunch, and break times.</CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <CardContent className="space-y-6">
-            {/* Work Hours */}
-            <div>
-              <h3 className="text-lg font-medium mb-2">Work Hours</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 <FormField
+               <FormField
                   control={form.control}
-                  name="workHours.start"
+                  name="rentAmount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Start Time</FormLabel>
+                      <FormLabel>Rent Amount</FormLabel>
                       <FormControl>
-                        <Input type="time" {...field} />
+                        <Input type="number" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                 <FormField
+
+            {daysOfWeek.map(day => (
+              <div key={day}>
+                <h3 className="text-lg font-medium mb-2">{day.charAt(0).toUpperCase() + day.slice(1)}</h3>
+                <FormField
                   control={form.control}
-                  name="workHours.end"
+                  name={day}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>End Time</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
+                      <div className="flex items-center space-x-2">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value.available}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel className="text-base">Available</FormLabel>
+                      </div>
+                      {field.value.available && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                          <FormField
+                            control={form.control}
+                            name={`${day}.start`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Start Time</FormLabel>
+                                <FormControl>
+                                  <Input type="time" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`${day}.end`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>End Time</FormLabel>
+                                <FormControl>
+                                  <Input type="time" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-            </div>
+            ))}
 
             <Separator />
 
