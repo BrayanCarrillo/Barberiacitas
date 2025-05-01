@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -32,24 +33,34 @@ async function getBarberAppointments(barberId: string, date: Date): Promise<Appo
      { id: 'app5', clientName: 'Eve Davis', service: { id: 'haircut', name: 'Haircut', duration: 30, price: 25 }, date: new Date(), time: '15:00' }, // Today
   ];
 
-  return mockAppointments.filter(app => isSameDay(app.date, date))
-     .sort((a, b) => {
-        // Sort by time
-        const timeA = parse(a.time, 'HH:mm', new Date());
-        const timeB = parse(b.time, 'HH:mm', new Date());
-        return timeA.getTime() - timeB.getTime();
-      });
+  // Filter for the selected date and sort by time
+  return mockAppointments
+    .filter(app => isSameDay(app.date, date))
+    .sort((a, b) => {
+      const timeA = parse(a.time, 'HH:mm', new Date());
+      const timeB = parse(b.time, 'HH:mm', new Date());
+      return timeA.getTime() - timeB.getTime();
+    });
 }
+
 
 interface CalendarViewProps {
   barberId: string;
 }
 
 export function CalendarView({ barberId }: CalendarViewProps) {
-  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(startOfDay(new Date()));
+  const [selectedDate, setSelectedDate] = React.useState<Date | null>(null); // Initialize with null
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(true); // Start loading initially
+  const [currentClientTime, setCurrentClientTime] = React.useState<Date | null>(null); // State for client time
 
+  // Set initial date and client time on mount (client-side only)
+  React.useEffect(() => {
+    setSelectedDate(startOfDay(new Date()));
+    setCurrentClientTime(new Date());
+  }, []);
+
+  // Fetch appointments when selectedDate changes (and is not null)
   React.useEffect(() => {
     if (selectedDate) {
       setIsLoading(true);
@@ -60,14 +71,50 @@ export function CalendarView({ barberId }: CalendarViewProps) {
           // Handle error state, maybe show a toast
         })
         .finally(() => setIsLoading(false));
+    } else {
+      // If selectedDate is null (initial state), don't fetch, ensure loading is true
+      setIsLoading(true);
+      setAppointments([]);
     }
   }, [selectedDate, barberId]);
 
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
       setSelectedDate(startOfDay(date));
+    } else {
+      setSelectedDate(null); // Handle undefined case if necessary
     }
   };
+
+  // Show skeleton while initial date/time is being set or appointments are loading
+  if (!selectedDate || !currentClientTime || isLoading) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+        <Card className="lg:col-span-1 flex flex-col">
+          <CardHeader>
+            <CardTitle>Select Date</CardTitle>
+            <CardDescription>Choose a date to view appointments.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center items-start pt-0 flex-grow">
+            <Skeleton className="w-[280px] h-[330px]" />
+          </CardContent>
+        </Card>
+        <Card className="lg:col-span-2 flex flex-col">
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+             <Skeleton className="h-4 w-64 mt-1" />
+          </CardHeader>
+          <CardContent className="flex-grow flex flex-col min-h-0">
+             <div className="space-y-4 pt-2">
+               <Skeleton className="h-20 w-full rounded-lg" />
+               <Skeleton className="h-20 w-full rounded-lg" />
+               <Skeleton className="h-20 w-full rounded-lg" />
+             </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
@@ -91,24 +138,18 @@ export function CalendarView({ barberId }: CalendarViewProps) {
 
       <Card className="lg:col-span-2 flex flex-col">
         <CardHeader>
-          <CardTitle>Appointments for {selectedDate ? format(selectedDate, 'PPP') : '...'}</CardTitle>
+          <CardTitle>Appointments for {format(selectedDate, 'PPP')}</CardTitle>
           <CardDescription>Details of scheduled appointments for the selected date.</CardDescription>
         </CardHeader>
         <CardContent className="flex-grow flex flex-col min-h-0">
           <ScrollArea className="flex-grow pr-4 -mr-4"> {/* Added negative margin to compensate padding */}
-            {isLoading ? (
-               <div className="space-y-4 pt-2">
-                 <Skeleton className="h-20 w-full rounded-lg" />
-                 <Skeleton className="h-20 w-full rounded-lg" />
-                 <Skeleton className="h-20 w-full rounded-lg" />
-               </div>
-            ) : appointments.length === 0 ? (
+            {appointments.length === 0 ? (
               <p className="text-muted-foreground text-center py-10">No appointments scheduled for this date.</p>
             ) : (
               <ul className="space-y-4">
                 {appointments.map((app, index) => {
-                   const appointmentTime = parse(app.time, 'HH:mm', selectedDate || new Date());
-                   const isPast = isBefore(appointmentTime, new Date());
+                   const appointmentTime = parse(app.time, 'HH:mm', selectedDate);
+                   const isPast = isBefore(appointmentTime, currentClientTime); // Use client time state
 
                   return (
                   <React.Fragment key={app.id}>

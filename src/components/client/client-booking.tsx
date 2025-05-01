@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -40,8 +41,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { addClientAppointment } from '@/lib/storage';
 import { cn } from '@/lib/utils';
-import { formatDate } from '@/lib/date-utils'; // Correct import path
-import type { Service, Appointment, AvailableSlots, TimeSlot } from '@/types';
+import { formatDate, formatTime } from '@/lib/date-utils'; // Correct import path and added formatTime
+import type { Service, Appointment, TimeSlot } from '@/types'; // Removed AvailableSlots as it's not used directly
 
 // Mock services data (replace with API call in a real app)
 const services: Service[] = [
@@ -51,26 +52,43 @@ const services: Service[] = [
   { id: 'shave', name: 'Hot Towel Shave', duration: 40, price: 30 },
 ];
 
-// Mock available slots (replace with API call in a real app)
-// In a real app, this would depend on the barber's schedule, existing appointments, and service duration
-const generateMockSlots = (date: Date): TimeSlot[] => {
-  const slots: TimeSlot[] = [];
-  const startHour = 9; // Barber starts at 9 AM
-  const endHour = 17; // Barber ends at 5 PM
-  const lunchStartHour = 12;
-  const lunchEndHour = 13;
+// Mock function to get available slots (replace with actual API call)
+async function getAvailableSlotsForDate(date: Date, serviceDuration: number): Promise<TimeSlot[]> {
+   console.log(`Fetching slots for ${format(date, 'yyyy-MM-dd')} with duration ${serviceDuration}min`);
+   // Simulate API delay
+   await new Promise(resolve => setTimeout(resolve, 500));
 
-  for (let hour = startHour; hour < endHour; hour++) {
-    if (hour >= lunchStartHour && hour < lunchEndHour) continue; // Skip lunch break
+    const slots: TimeSlot[] = [];
+    const startHour = 9; // Barber starts at 9 AM
+    const endHour = 17; // Barber ends at 5 PM
+    const lunchStartHour = 12;
+    const lunchEndHour = 13;
+    const intervalMinutes = 15; // Check availability every 15 minutes
 
-    for (let minute = 0; minute < 60; minute += 30) { // Assume 30-min slots for simplicity
-      // Simulate some unavailable slots randomly
-      const isAvailable = Math.random() > 0.3; // 70% chance of being available
-      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-      slots.push({ time, available: isAvailable });
+    for (let hour = startHour; hour < endHour; hour++) {
+        for (let minute = 0; minute < 60; minute += intervalMinutes) {
+            const slotTime = new Date(date);
+            slotTime.setHours(hour, minute, 0, 0);
+
+            // Skip if slot is during lunch break
+            if (hour >= lunchStartHour && hour < lunchEndHour) continue;
+
+            // Skip if slot ends after work hours (considering service duration)
+            const endTime = new Date(slotTime.getTime() + serviceDuration * 60000);
+            if (endTime.getHours() >= endHour && endTime.getMinutes() > 0) continue; // Allow ending exactly at endHour
+            if (endTime.getHours() > endHour) continue;
+             if (endTime.getHours() >= lunchStartHour && endTime.getHours() < lunchEndHour && !(hour === lunchStartHour && minute === 0)) continue; // Check if end time falls into lunch
+
+            // Simulate some unavailable slots randomly (e.g., existing appointments)
+            const isAvailable = Math.random() > 0.3; // 70% chance of being available
+
+            const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+            slots.push({ time: timeString, available: isAvailable });
+        }
     }
-  }
-  return slots;
+    // Remove duplicates potentially caused by interval logic, favoring earlier availability status
+    const uniqueSlots = Array.from(new Map(slots.map(slot => [slot.time, slot])).values());
+    return uniqueSlots;
 };
 
 
@@ -87,6 +105,11 @@ export function ClientBooking() {
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(undefined);
   const [availableSlots, setAvailableSlots] = React.useState<TimeSlot[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = React.useState(false);
+  const [isClient, setIsClient] = React.useState(false); // State to track client-side mount
+
+   React.useEffect(() => {
+    setIsClient(true); // Set to true once component mounts on client
+  }, []);
 
   const form = useForm<BookingFormValues>({
     resolver: zodResolver(bookingFormSchema),
@@ -98,28 +121,39 @@ export function ClientBooking() {
   });
 
   const selectedServiceId = form.watch('serviceId');
+  const selectedDateWatcher = form.watch('date'); // Watch date from form state
   const selectedService = services.find(s => s.id === selectedServiceId);
 
   // Fetch available slots when date or service changes
   React.useEffect(() => {
-    if (selectedDate && selectedService) {
+     // Use selectedDateWatcher from form state instead of local state
+     if (selectedDateWatcher && selectedService) {
       setIsLoadingSlots(true);
-      // Simulate API call delay
-      setTimeout(() => {
-        const slots = generateMockSlots(selectedDate);
-        // Filter slots based on service duration (basic example)
-        // A real implementation would need more complex logic
-        setAvailableSlots(slots);
-        setIsLoadingSlots(false);
-        form.resetField('time'); // Reset time when date or service changes
-      }, 500);
+      getAvailableSlotsForDate(selectedDateWatcher, selectedService.duration)
+        .then(slots => {
+             setAvailableSlots(slots);
+             setIsLoadingSlots(false);
+             form.resetField('time'); // Reset time when date or service changes
+        })
+        .catch(error => {
+             console.error("Failed to fetch available slots:", error);
+             setAvailableSlots([]);
+             setIsLoadingSlots(false);
+              toast({
+                title: "Error Loading Slots",
+                description: "Could not load available times for the selected date.",
+                variant: "destructive",
+            });
+        });
     } else {
       setAvailableSlots([]);
     }
-  }, [selectedDate, selectedService, form]);
+  }, [selectedDateWatcher, selectedService, form, toast]);
 
 
   function onSubmit(data: BookingFormValues) {
+     if (!isClient) return; // Ensure crypto is available
+
      if (!selectedService) {
       toast({
         title: "Error",
@@ -130,7 +164,7 @@ export function ClientBooking() {
     }
 
     const newAppointment: Appointment = {
-      id: crypto.randomUUID(), // Generate a unique ID
+      id: crypto.randomUUID(), // Generate a unique ID - Safe now due to isClient check
       service: selectedService,
       date: data.date,
       time: data.time,
@@ -141,13 +175,17 @@ export function ClientBooking() {
       addClientAppointment(newAppointment);
       toast({
         title: 'Appointment Booked!',
-        description: `Your ${selectedService.name} is scheduled for ${formatDate(data.date)} at ${format(new Date(`1970-01-01T${data.time}`), 'p')}.`,
+         // Use formatTime utility
+        description: `Your ${selectedService.name} is scheduled for ${formatDate(data.date)} at ${formatTime(data.time)}.`,
       });
       form.reset();
-      setSelectedDate(undefined); // Reset date picker
+      setSelectedDate(undefined); // Reset local state for calendar UI if needed (optional, form reset handles core state)
       setAvailableSlots([]); // Clear slots
-      // Optionally trigger a refresh of the client appointments list
-      window.dispatchEvent(new Event('storage'));
+      // Trigger a custom event to notify other components like ClientAppointments
+       window.dispatchEvent(new CustomEvent('appointmentbooked'));
+       // Also trigger storage event for potentially listening tabs (though custom event is often better for same-page updates)
+       window.dispatchEvent(new StorageEvent('storage', { key: 'barberEaseClientAppointments' }));
+
     } catch (error) {
        toast({
         title: "Booking Failed",
@@ -173,7 +211,7 @@ export function ClientBooking() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Service</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <Scissors className="mr-2 h-4 w-4" />
@@ -208,9 +246,12 @@ export function ClientBooking() {
                             "w-full pl-3 text-left font-normal",
                             !field.value && "text-muted-foreground"
                           )}
+                           // Disable button until client side mount to prevent hydration issue with Popover state
+                          disabled={!isClient}
                         >
+                           {/* Use formatDate utility */}
                           {field.value ? (
-                            format(field.value, "PPP")
+                            formatDate(field.value)
                           ) : (
                             <span>Pick a date</span>
                           )}
@@ -218,34 +259,38 @@ export function ClientBooking() {
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={(date) => {
-                          field.onChange(date);
-                          setSelectedDate(date); // Update local state for slot fetching
-                        }}
-                        disabled={(date) =>
-                          isBefore(date, addDays(new Date(), -1)) // Disable past dates
-                        }
-                        initialFocus
-                      />
-                    </PopoverContent>
+                     {/* PopoverContent might also cause hydration issues if open by default server-side.
+                         Ensure it's closed initially or conditionally render based on isClient */}
+                    {isClient && (
+                       <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            // setSelectedDate(date); // Update local state - This might be redundant now
+                          }}
+                           disabled={(date) =>
+                             isBefore(date, startOfDay(new Date())) // Disable past dates including today before start of day
+                           }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                     )}
                   </Popover>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {selectedDate && selectedService && (
+            {selectedDateWatcher && selectedService && (
               <FormField
                 control={form.control}
                 name="time"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Available Time Slots</FormLabel>
-                     <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingSlots || availableSlots.length === 0}>
+                     <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingSlots || availableSlots.length === 0}>
                       <FormControl>
                         <SelectTrigger>
                            <Clock className="mr-2 h-4 w-4" />
@@ -258,7 +303,8 @@ export function ClientBooking() {
                         ) : availableSlots.length > 0 ? (
                            availableSlots.map((slot) => (
                             <SelectItem key={slot.time} value={slot.time} disabled={!slot.available}>
-                              {format(new Date(`1970-01-01T${slot.time}`), 'p')} { !slot.available ? '(Unavailable)' : ''}
+                               {/* Use formatTime utility */}
+                              {formatTime(slot.time)} { !slot.available ? '(Unavailable)' : ''}
                             </SelectItem>
                           ))
                         ) : (
@@ -267,7 +313,7 @@ export function ClientBooking() {
                       </SelectContent>
                     </Select>
                     <FormDescription>
-                      Select an available time slot for your {selectedService?.duration} minute service.
+                       Slots shown are start times for your {selectedService?.duration} minute service.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -276,7 +322,7 @@ export function ClientBooking() {
             )}
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" disabled={!form.formState.isValid || isLoadingSlots}>
+            <Button type="submit" className="w-full" disabled={!form.formState.isValid || isLoadingSlots || !isClient}>
               Book Appointment
             </Button>
           </CardFooter>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -27,35 +28,72 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { formatTime } from '@/lib/date-utils'; // Import formatTime
 
 export function ClientAppointments() {
-  const [appointments, setAppointments] = React.useState<Appointment[]>([]);
+  const [appointments, setAppointments] = React.useState<Appointment[] | null>(null); // Initialize with null
+  const [isLoading, setIsLoading] = React.useState(true);
   const { toast } = useToast();
 
   const fetchAppointments = React.useCallback(() => {
-    const storedAppointments = getClientAppointments();
-    // Sort appointments by date and time
-    const sortedAppointments = storedAppointments.sort((a, b) => {
-      const dateA = new Date(a.date);
-      dateA.setHours(parseInt(a.time.split(':')[0], 10), parseInt(a.time.split(':')[1], 10));
-      const dateB = new Date(b.date);
-      dateB.setHours(parseInt(b.time.split(':')[0], 10), parseInt(b.time.split(':')[1], 10));
-      return dateA.getTime() - dateB.getTime();
-    });
-    setAppointments(sortedAppointments);
-  }, []);
+    setIsLoading(true);
+    try {
+        const storedAppointments = getClientAppointments();
+        // Sort appointments by date and time
+        const sortedAppointments = storedAppointments.sort((a, b) => {
+          const dateA = new Date(a.date);
+          if (a.time) { // Check if time is defined
+            const [hoursA, minutesA] = a.time.split(':').map(Number);
+            if (!isNaN(hoursA) && !isNaN(minutesA)) {
+                dateA.setHours(hoursA, minutesA);
+            }
+          }
 
+          const dateB = new Date(b.date);
+           if (b.time) { // Check if time is defined
+             const [hoursB, minutesB] = b.time.split(':').map(Number);
+             if (!isNaN(hoursB) && !isNaN(minutesB)) {
+                dateB.setHours(hoursB, minutesB);
+             }
+           }
+          return dateA.getTime() - dateB.getTime();
+        });
+        setAppointments(sortedAppointments);
+    } catch (error) {
+        console.error("Error fetching appointments:", error);
+        setAppointments([]); // Set to empty array on error
+         toast({
+            title: "Error Loading Appointments",
+            description: "Could not load your saved appointments.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsLoading(false);
+    }
+  }, [toast]);
+
+  // Fetch appointments on mount (client-side only)
   React.useEffect(() => {
     fetchAppointments();
-    // Listen for storage changes (e.g., when a new appointment is added)
-    const handleStorageChange = () => {
-      fetchAppointments();
+
+    // Define the handler for storage changes
+    const handleStorageChange = (event: StorageEvent) => {
+        // Check if the change happened to our specific key
+        if (event.key === 'barberEaseClientAppointments') {
+            fetchAppointments();
+        }
     };
+
+    // Add event listener
     window.addEventListener('storage', handleStorageChange);
+
+    // Remove event listener on cleanup
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [fetchAppointments]);
+
 
   const handleCancelAppointment = (appointmentId: string) => {
      try {
@@ -74,6 +112,23 @@ export function ClientAppointments() {
     }
   };
 
+   const renderSkeleton = (count = 3) => (
+    <div className="space-y-4 p-4">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 rounded-lg border">
+           <div className="space-y-2 flex-grow">
+             <Skeleton className="h-5 w-3/5" />
+             <Skeleton className="h-4 w-4/5" />
+             <Skeleton className="h-4 w-2/5" />
+             <Skeleton className="h-4 w-1/4" />
+           </div>
+           <Skeleton className="h-9 w-24 mt-2 sm:mt-0" />
+        </div>
+      ))}
+    </div>
+  );
+
+
   return (
     <Card>
       <CardHeader>
@@ -82,7 +137,9 @@ export function ClientAppointments() {
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[400px] pr-4">
-          {appointments.length === 0 ? (
+          {isLoading || appointments === null ? ( // Show skeleton if loading or appointments are null
+            renderSkeleton()
+          ) : appointments.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">You have no upcoming appointments.</p>
           ) : (
             <ul className="space-y-4">
@@ -97,7 +154,8 @@ export function ClientAppointments() {
                        </div>
                        <div className="flex items-center text-sm text-muted-foreground gap-2">
                          <Clock className="h-4 w-4" />
-                         <span>{format(new Date(`1970-01-01T${app.time}`), 'p')}</span>
+                          {/* Use formatTime utility */}
+                         <span>{formatTime(app.time)}</span>
                        </div>
                       <p className="text-sm text-muted-foreground">Price: ${app.service.price}</p>
                      </div>
@@ -112,7 +170,8 @@ export function ClientAppointments() {
                          <AlertDialogHeader>
                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                            <AlertDialogDescription>
-                             This action cannot be undone. This will permanently cancel your appointment for {app.service.name} on {format(app.date, 'PPP')} at {format(new Date(`1970-01-01T${app.time}`), 'p')}.
+                              {/* Use formatTime utility */}
+                             This action cannot be undone. This will permanently cancel your appointment for {app.service.name} on {format(app.date, 'PPP')} at {formatTime(app.time)}.
                            </AlertDialogDescription>
                          </AlertDialogHeader>
                          <AlertDialogFooter>

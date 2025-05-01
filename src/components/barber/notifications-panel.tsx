@@ -1,7 +1,8 @@
+
 "use client";
 
 import * as React from 'react';
-import { differenceInMinutes, format, parse, isSameDay, startOfDay, addHours } from 'date-fns';
+import { differenceInMinutes, format, parse, isSameDay, startOfDay, addHours, isAfter } from 'date-fns';
 import { Bell, Clock, CalendarCheck2 } from 'lucide-react';
 import {
   Card,
@@ -24,15 +25,16 @@ async function getAllBarberAppointments(barberId: string): Promise<Appointment[]
 
   const today = startOfDay(new Date());
   const tomorrow = startOfDay(addHours(today, 24)); // Correctly get start of tomorrow
+  const now = new Date(); // Get current time once for mock data generation
 
   // Mock Data
   return [
-     { id: 'n_app1', clientName: 'Gael Miller', service: { id: 'haircut', name: 'Haircut', duration: 30, price: 25 }, date: today, time: format(addHours(new Date(), 0.5), 'HH:mm') }, // Upcoming soon
-     { id: 'n_app2', clientName: 'Pedro Wilson', service: { id: 'beard_trim', name: 'Beard Trim', duration: 20, price: 15 }, date: today, time: format(addHours(new Date(), 2), 'HH:mm') }, // Today later
-     { id: 'n_app3', clientName: 'Ivan Taylor', service: { id: 'haircut_beard', name: 'Haircut & Beard Trim', duration: 50, price: 35 }, date: today, time: format(addHours(new Date(), 4), 'HH:mm') }, // Today much later
+     { id: 'n_app1', clientName: 'Gael Miller', service: { id: 'haircut', name: 'Haircut', duration: 30, price: 25 }, date: today, time: format(addHours(now, 0.5), 'HH:mm') }, // Upcoming soon
+     { id: 'n_app2', clientName: 'Pedro Wilson', service: { id: 'beard_trim', name: 'Beard Trim', duration: 20, price: 15 }, date: today, time: format(addHours(now, 2), 'HH:mm') }, // Today later
+     { id: 'n_app3', clientName: 'Ivan Taylor', service: { id: 'haircut_beard', name: 'Haircut & Beard Trim', duration: 50, price: 35 }, date: today, time: format(addHours(now, 4), 'HH:mm') }, // Today much later
      { id: 'n_app4', clientName: 'Juan Anderson', service: { id: 'shave', name: 'Hot Towel Shave', duration: 40, price: 30 }, date: tomorrow, time: '10:00' }, // Tomorrow
-     { id: 'n_app5', clientName: 'Diego Garcia', service: { id: 'haircut', name: 'Haircut', duration: 30, price: 25 }, date: today, time: format(addHours(new Date(), -1), 'HH:mm') }, // Past today
-     { id: 'n_app6', clientName: 'Jose Hernandez', service: { id: 'haircut', name: 'Haircut', duration: 30, price: 25 }, date: today, time: format(addHours(new Date(), 0.1), 'HH:mm') }, // Very Soon
+     { id: 'n_app5', clientName: 'Diego Garcia', service: { id: 'haircut', name: 'Haircut', duration: 30, price: 25 }, date: today, time: format(addHours(now, -1), 'HH:mm') }, // Past today
+     { id: 'n_app6', clientName: 'Jose Hernandez', service: { id: 'haircut', name: 'Haircut', duration: 30, price: 25 }, date: today, time: format(addHours(now, 0.1), 'HH:mm') }, // Very Soon
   ].sort((a, b) => {
       const dateTimeA = parse(a.time, 'HH:mm', a.date);
       const dateTimeB = parse(b.time, 'HH:mm', b.date);
@@ -46,48 +48,66 @@ interface NotificationsPanelProps {
 }
 
 export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
+  const [allAppointments, setAllAppointments] = React.useState<Appointment[]>([]);
   const [upcomingAppointments, setUpcomingAppointments] = React.useState<Appointment[]>([]);
   const [dailyAppointments, setDailyAppointments] = React.useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [currentTime, setCurrentTime] = React.useState(new Date());
+  const [currentTime, setCurrentTime] = React.useState<Date | null>(null); // Initialize with null
 
+   // Effect to set initial time and start interval on client side
+   React.useEffect(() => {
+    setCurrentTime(new Date()); // Set initial time
+    const timer = setInterval(() => {
+      setCurrentTime(new Date()); // Update time every minute
+    }, 60000);
+    return () => clearInterval(timer); // Cleanup interval on unmount
+  }, []);
+
+  // Effect to fetch and filter appointments
   React.useEffect(() => {
-     const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000); // Update time every minute
+    // Only run if currentTime is set (i.e., after hydration)
+    if (currentTime) {
+        setIsLoading(true);
+        getAllBarberAppointments(barberId)
+          .then(fetchedAppointments => {
+            setAllAppointments(fetchedAppointments); // Store all fetched appointments
 
-     setIsLoading(true);
-    getAllBarberAppointments(barberId)
-      .then(allAppointments => {
-        const now = new Date(); // Use consistent 'now' for filtering
+            // Filter for upcoming (within the next hour from currentTime)
+            const upcoming = fetchedAppointments.filter(app => {
+              const appDateTime = parse(app.time, 'HH:mm', app.date);
+              const diff = differenceInMinutes(appDateTime, currentTime);
+              return isAfter(appDateTime, currentTime) && diff <= 60; // Ensure it's in the future
+            });
+            setUpcomingAppointments(upcoming);
 
-        // Filter for upcoming (within the next hour)
-        const upcoming = allAppointments.filter(app => {
-          const appDateTime = parse(app.time, 'HH:mm', app.date);
-          const diff = differenceInMinutes(appDateTime, now);
-          return diff >= 0 && diff <= 60;
-        });
-        setUpcomingAppointments(upcoming);
-
-        // Filter for today's remaining appointments
-        const today = startOfDay(now);
-        const daily = allAppointments.filter(app =>
-          isSameDay(app.date, today) &&
-          differenceInMinutes(parse(app.time, 'HH:mm', app.date), now) >= 0 // Only future appointments today
-        );
-        setDailyAppointments(daily);
-      })
-       .catch(error => console.error("Failed to fetch appointments for notifications:", error))
-      .finally(() => setIsLoading(false));
-
-       return () => clearInterval(timer); // Cleanup interval on unmount
-  }, [barberId]); // Rerun effect when barberId changes (or time updates if needed, but useEffect deps manage this)
+            // Filter for today's remaining appointments from currentTime
+            const todayStart = startOfDay(currentTime);
+            const daily = fetchedAppointments.filter(app =>
+              isSameDay(app.date, todayStart) &&
+              isAfter(parse(app.time, 'HH:mm', app.date), currentTime) // Only future appointments today
+            );
+            setDailyAppointments(daily);
+          })
+          .catch(error => console.error("Failed to fetch appointments for notifications:", error))
+          .finally(() => setIsLoading(false));
+    } else {
+      // If currentTime is null (before hydration), keep loading true
+       setIsLoading(true);
+       setUpcomingAppointments([]);
+       setDailyAppointments([]);
+    }
+  }, [barberId, currentTime]); // Rerun when currentTime updates
 
 
   const renderAppointmentItem = (app: Appointment, isUpcoming: boolean = false) => {
+     if (!currentTime) return null; // Don't render if currentTime is not set yet
+
      const appDateTime = parse(app.time, 'HH:mm', app.date);
      const minutesUntil = differenceInMinutes(appDateTime, currentTime); // Use state for current time
      const timeFormatted = format(appDateTime, 'p');
+
+    // This check might be redundant due to filtering but ensures consistency
+    if (minutesUntil < 0 && !isUpcoming) return null; // Don't render past daily appointments
 
     return (
        <li key={app.id} className="flex items-start gap-4 p-3 rounded-md border bg-card">
@@ -99,7 +119,7 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
           <div className="flex items-center text-sm text-muted-foreground gap-2">
              <Clock className="h-3.5 w-3.5" />
              <span>{timeFormatted}</span>
-              {isUpcoming && minutesUntil >= 0 && (
+              {isUpcoming && minutesUntil >= 0 && ( // Only show badge for future upcoming
                <Badge variant={minutesUntil <= 15 ? "destructive" : "secondary"}>
                  in {minutesUntil} min
                </Badge>
@@ -125,6 +145,32 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
     </div>
   );
 
+   // Show skeleton if loading or if currentTime is not yet available
+  if (isLoading || !currentTime) {
+     return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
+         <Card className="flex flex-col">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Bell className="text-accent h-5 w-5" />Upcoming Appointments</CardTitle>
+              <CardDescription>Appointments starting within the next hour.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-grow flex flex-col min-h-0">
+              {renderSkeleton(2)}
+            </CardContent>
+         </Card>
+         <Card className="flex flex-col">
+           <CardHeader>
+             <CardTitle className="flex items-center gap-2"><CalendarCheck2 className="text-primary h-5 w-5" />Today's Schedule</CardTitle>
+             <CardDescription>Remaining appointments for today.</CardDescription>
+           </CardHeader>
+           <CardContent className="flex-grow flex flex-col min-h-0">
+             {renderSkeleton(4)}
+           </CardContent>
+         </Card>
+      </div>
+    );
+   }
+
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
@@ -135,7 +181,7 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
         </CardHeader>
         <CardContent className="flex-grow flex flex-col min-h-0">
           <ScrollArea className="flex-grow pr-3 -mr-3"> {/* Adjust padding */}
-             {isLoading ? renderSkeleton(2) : upcomingAppointments.length === 0 ? (
+             {upcomingAppointments.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">No appointments starting soon.</p>
             ) : (
               <ul className="space-y-3">
@@ -153,7 +199,7 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
         </CardHeader>
         <CardContent className="flex-grow flex flex-col min-h-0">
           <ScrollArea className="flex-grow pr-3 -mr-3"> {/* Adjust padding */}
-            {isLoading ? renderSkeleton(4) : dailyAppointments.length === 0 ? (
+            {dailyAppointments.length === 0 ? (
                <p className="text-muted-foreground text-center py-8">No more appointments scheduled for today.</p>
             ) : (
               <ul className="space-y-3">

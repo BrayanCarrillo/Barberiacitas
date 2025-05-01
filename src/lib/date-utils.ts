@@ -1,3 +1,4 @@
+
 import { format } from 'date-fns';
 
 /**
@@ -17,11 +18,16 @@ export function formatDate(date: Date | null | undefined): string {
  */
 export function formatTime(timeString: string): string {
   if (!timeString) return '';
-  const [hours, minutes] = timeString.split(':');
-  const date = new Date();
-  date.setHours(parseInt(hours, 10), parseInt(minutes, 10));
+  // Create a date object just to use the format function's 'p' token
+  const date = new Date(`1970-01-01T${timeString}`);
+  // Check if the created date is valid
+  if (isNaN(date.getTime())) {
+      console.warn(`Invalid time string provided to formatTime: ${timeString}`);
+      return timeString; // Return original string if invalid
+  }
   return format(date, 'p'); // e.g., 2:30 PM
 }
+
 
 /**
  * Checks if two Date objects represent the same day.
