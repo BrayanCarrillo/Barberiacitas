@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
-import { GeistSans } from 'geist/font/sans'; // Correct import path from subpath
-import { GeistMono } from 'geist/font/mono';   // Correct import path from subpath
+import { GeistSans } from 'geist/font/sans';
+import { GeistMono } from 'geist/font/mono';
 import './globals.css';
 import { Header } from '@/components/layout/header';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 
 // Initialize fonts by calling the imported functions
+// Place initialization outside the component function
 const geistSans = GeistSans({
   variable: '--font-geist-sans',
   subsets: ['latin'],
@@ -28,13 +29,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      {/* Add font variables to the html tag for global availability */}
+    // Apply font variables to the html tag for global availability
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={cn(geistSans.variable, geistMono.variable)} // Apply variables here
+    >
       <body
         className={cn(
-          'min-h-screen bg-background font-sans antialiased flex flex-col',
-          geistSans.variable, // Use the .variable property
-          geistMono.variable   // Use the .variable property
+          'min-h-screen bg-background font-sans antialiased flex flex-col'
+          // Font family is now set globally via html tag and CSS variables
         )}
       >
         <Header />
