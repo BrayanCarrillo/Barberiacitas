@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { BarberSettings } from '@/types';
@@ -5,7 +6,7 @@ import type { BarberSettings } from '@/types';
 const BARBER_SETTINGS_STORAGE_KEY_PREFIX = 'barberEaseBarberSettings_';
 
 // Default settings if none are found in storage
-const defaultSettings: BarberSettings = {
+export const defaultSettings: BarberSettings = {
   workHours: { start: '09:00', end: '17:00' },
   breakTimes: [{ start: '11:00', end: '11:15' }],
   lunchBreak: { start: '12:30', end: '13:00' },
@@ -25,34 +26,36 @@ export function getBarberSettingsFromStorage(barberId: string): BarberSettings {
   // Check if running on the client side
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
     console.warn("Cannot get settings: Local storage is not available. Returning default settings.");
-    return { ...defaultSettings }; // Return a copy
+    return JSON.parse(JSON.stringify(defaultSettings)); // Return a deep copy
   }
 
   const storageKey = getStorageKey(barberId);
+  console.log("getBarberSettings: Attempting to load from key:", storageKey);
 
   try {
     const storedData = localStorage.getItem(storageKey);
     if (storedData) {
+        console.log("getBarberSettings: Found stored data:", storedData);
       const parsedData = JSON.parse(storedData) as BarberSettings;
       // Basic validation (can be expanded)
       if (parsedData && parsedData.workHours && parsedData.lunchBreak && Array.isArray(parsedData.breakTimes)) {
+          console.log("getBarberSettings: Parsed data seems valid:", parsedData);
           return parsedData;
       } else {
-          console.warn("Invalid settings data found in storage for key:", storageKey, ". Returning default settings.");
+          console.warn("getBarberSettings: Invalid settings data found in storage. Returning default settings.");
           // Optionally save default settings back to storage here
-          // saveBarberSettingsToStorage(barberId, defaultSettings);
-          return { ...defaultSettings };
+           saveBarberSettingsToStorage(barberId, defaultSettings);
+          return JSON.parse(JSON.stringify(defaultSettings)); // Return deep copy
       }
     } else {
-      // No settings found, return default and potentially save them
-      console.log("No settings found for key:", storageKey, ". Returning default settings.");
-       // Optionally save default settings back to storage here
-       // saveBarberSettingsToStorage(barberId, defaultSettings);
-      return { ...defaultSettings };
+      // No settings found, return default and save them
+      console.log("getBarberSettings: No settings found. Returning default settings and saving them.");
+       saveBarberSettingsToStorage(barberId, defaultSettings); // Save default if none exist
+      return JSON.parse(JSON.stringify(defaultSettings)); // Return deep copy
     }
   } catch (error) {
-    console.error("Error retrieving settings from local storage for key:", storageKey, error);
-    return { ...defaultSettings }; // Return default settings on error
+    console.error("getBarberSettings: Error retrieving/parsing settings:", error);
+    return JSON.parse(JSON.stringify(defaultSettings)); // Return deep copy on error
   }
 }
 
@@ -70,21 +73,23 @@ export function saveBarberSettingsToStorage(barberId: string, settings: BarberSe
   }
 
   const storageKey = getStorageKey(barberId);
+   console.log("saveBarberSettings: Attempting to save to key:", storageKey, "with data:", settings);
 
   try {
     // Basic validation before saving (can be expanded)
      if (!settings || !settings.workHours || !settings.lunchBreak || !Array.isArray(settings.breakTimes)) {
-        console.error("Attempted to save invalid settings object for key:", storageKey, settings);
+        console.error("saveBarberSettings: Attempted to save invalid settings object:", settings);
         return false;
      }
     const dataToStore = JSON.stringify(settings);
     localStorage.setItem(storageKey, dataToStore);
-    console.log("Settings saved successfully for key:", storageKey);
+    console.log("saveBarberSettings: Settings saved successfully.");
      // Optional: Dispatch an event if other components need to react to settings changes
-     // window.dispatchEvent(new CustomEvent('barberSettingsChanged', { detail: { barberId } }));
+     window.dispatchEvent(new CustomEvent('barberSettingsChanged', { detail: { barberId, settings } }));
     return true;
   } catch (error) {
-    console.error("Error saving settings to local storage for key:", storageKey, error);
+    console.error("saveBarberSettings: Error saving settings:", error);
     return false;
   }
 }
+    
