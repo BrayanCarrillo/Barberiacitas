@@ -38,10 +38,10 @@ async function getCompletedAppointments(barberId: string): Promise<Appointment[]
     for (let j = 0; j < appointmentsToday; j++) {
       const serviceType = Math.random();
       let service;
-      if (serviceType < 0.4) service = { id: 'haircut', name: 'Haircut', duration: 30, price: 25 };
-      else if (serviceType < 0.7) service = { id: 'beard_trim', name: 'Beard Trim', duration: 20, price: 15 };
-      else if (serviceType < 0.9) service = { id: 'haircut_beard', name: 'Haircut & Beard Trim', duration: 50, price: 35 };
-      else service = { id: 'shave', name: 'Hot Towel Shave', duration: 40, price: 30 };
+      if (serviceType < 0.4) service = { id: 'haircut', name: 'Corte de pelo', duration: 30, price: 25 };
+      else if (serviceType < 0.7) service = { id: 'beard_trim', name: 'Recorte de barba', duration: 20, price: 15 };
+      else if (serviceType < 0.9) service = { id: 'haircut_beard', name: 'Corte de pelo y barba', duration: 50, price: 35 };
+      else service = { id: 'shave', name: 'Afeitado con toalla caliente', duration: 40, price: 30 };
 
       mockData.push({
         id: `acc_app_${i}_${j}`,

@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from 'react';
@@ -64,8 +63,8 @@ export function ClientAppointments() {
         console.error("Error fetching appointments:", error);
         setAppointments([]); // Set to empty array on error
          toast({
-            title: "Error Loading Appointments",
-            description: "Could not load your saved appointments.",
+            title: "Error al cargar citas",
+            description: "No se pudieron cargar tus citas guardadas.",
             variant: "destructive",
         });
     } finally {
@@ -100,13 +99,13 @@ export function ClientAppointments() {
       removeClientAppointment(appointmentId);
       fetchAppointments(); // Refresh the list
       toast({
-        title: 'Appointment Cancelled',
-        description: 'Your appointment has been successfully cancelled.',
+        title: 'Cita cancelada',
+        description: 'Tu cita ha sido cancelada exitosamente.',
       });
     } catch (error) {
        toast({
-        title: "Cancellation Failed",
-        description: "Could not cancel the appointment. Please try again.",
+        title: "Error al cancelar",
+        description: "No se pudo cancelar la cita. Por favor intenta nuevamente.",
         variant: "destructive",
       });
     }
@@ -132,15 +131,15 @@ export function ClientAppointments() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Your Appointments</CardTitle>
-        <CardDescription>View your upcoming scheduled appointments.</CardDescription>
+        <CardTitle>Tus citas</CardTitle>
+        <CardDescription>Consulta tus próximas citas agendadas.</CardDescription>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[400px] pr-4">
           {isLoading || appointments === null ? ( // Show skeleton if loading or appointments are null
             renderSkeleton()
           ) : appointments.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">You have no upcoming appointments.</p>
+            <p className="text-muted-foreground text-center py-8">No tienes citas próximas.</p>
           ) : (
             <ul className="space-y-4">
               {appointments.map((app, index) => (
@@ -163,21 +162,21 @@ export function ClientAppointments() {
                        <AlertDialogTrigger asChild>
                           <Button variant="outline" size="sm" className="w-full sm:w-auto">
                            <Trash2 className="h-4 w-4 mr-2" />
-                           Cancel
+                           Cancelar
                          </Button>
                        </AlertDialogTrigger>
                        <AlertDialogContent>
                          <AlertDialogHeader>
-                           <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                           <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                            <AlertDialogDescription>
                               {/* Use formatTime utility */}
-                             This action cannot be undone. This will permanently cancel your appointment for {app.service.name} on {format(app.date, 'PPP')} at {formatTime(app.time)}.
+                             Esta acción no se puede deshacer. Esto cancelará permanentemente tu cita para {app.service.name} el {format(app.date, 'PPP')} a las {formatTime(app.time)}.
                            </AlertDialogDescription>
                          </AlertDialogHeader>
                          <AlertDialogFooter>
-                           <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
+                           <AlertDialogCancel>Mantener cita</AlertDialogCancel>
                            <AlertDialogAction onClick={() => handleCancelAppointment(app.id)}>
-                             Yes, Cancel It
+                             Sí, cancelar
                            </AlertDialogAction>
                          </AlertDialogFooter>
                        </AlertDialogContent>

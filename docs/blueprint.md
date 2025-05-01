@@ -1,10 +1,10 @@
 # **App Name**: BarberEase
 
-## Core Features:
+## Funcionalidades principales:
 
-- Appointment Scheduling: Client-side appointment booking with local storage for personal appointments. Clients can select services (haircut, beard trim, etc.) and choose a date and time using a calendar interface.
-- Barber Calendar & Notifications: Barber-side calendar view to display client appointments. Displays upcoming appointments (one hour prior) and a daily schedule with time, date, and service details. This view will display two separate notification panels
-- Barber Settings & Rent Payment: Settings menu for barbers to adjust work hours, break times, and lunch breaks. Functionality for barbers to track and pay monthly rent for their station within the application.
+- Reserva de citas: Reserva de citas del lado del cliente con almacenamiento local para citas personales. Los clientes pueden seleccionar servicios (corte de pelo, recorte de barba, etc.) y elegir fecha y hora usando una interfaz de calendario.
+- Calendario y notificaciones del barbero: Vista de calendario para el barbero para mostrar las citas de los clientes. Muestra próximas citas (una hora antes) y la agenda diaria con hora, fecha y detalles del servicio. Esta vista mostrará dos paneles de notificaciones separados.
+- Configuración del barbero y pago de renta: Menú de configuración para que los barberos ajusten horarios de trabajo, descansos y almuerzos. Funcionalidad para que los barberos lleven el control y paguen la renta mensual de su estación dentro de la aplicación.
 
 ## Style Guidelines:
 

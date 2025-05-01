@@ -17,7 +17,6 @@ import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 import { getClientAppointments } from '@/lib/storage'; // Import getClientAppointments from storage
 import { formatTime } from '@/lib/date-utils'; // Import formatTime utility
 
-
 interface NotificationsPanelProps {
   barberId: string;
 }
@@ -64,7 +63,6 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
             );
             setDailyAppointments(daily);
 
-
         } catch (error) {
             console.error("Failed to fetch appointments for notifications:", error);
             setAllAppointments([]);
@@ -82,13 +80,14 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
     }
   }, [barberId, currentTime]); // Rerun when currentTime updates
 
-
   const renderAppointmentItem = (app: Appointment, isUpcoming: boolean = false) => {
      if (!currentTime) return null; // Don't render if currentTime is not set yet
 
      const appDateTime = parse(app.time, 'HH:mm', app.date);
      const minutesUntil = differenceInMinutes(appDateTime, currentTime); // Use state for current time
      const timeFormatted = format(appDateTime, 'p');
+
+    // Si hay textos visibles en la UI, tradúcelos aquí. Si no, los mocks ya están traducidos.
 
     // This check might be redundant due to filtering but ensures consistency
     if (minutesUntil < 0 && !isUpcoming) return null; // Don't render past daily appointments
@@ -113,7 +112,6 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
       </li>
     );
   };
-
 
    const renderSkeleton = (count = 3) => (
     <div className="space-y-3">
@@ -154,7 +152,6 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
       </div>
     );
    }
-
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">

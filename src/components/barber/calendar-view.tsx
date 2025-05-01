@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from 'react';
@@ -42,7 +41,6 @@ function getBarberAppointmentsForDate(date: Date): Appointment[] {
       return []; // Return empty array on error
   }
 }
-
 
 interface CalendarViewProps {
   barberId: string; // Keep barberId prop for potential future backend integration
@@ -104,13 +102,11 @@ export function CalendarView({ barberId }: CalendarViewProps) {
         }
          window.addEventListener('appointmentbooked', handleAppointmentBooked);
 
-
         return () => {
             window.removeEventListener('storage', handleStorageChange);
             window.removeEventListener('appointmentbooked', handleAppointmentBooked);
         };
     }, [fetchAndSetAppointments]); // Depend on the fetching function
-
 
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {

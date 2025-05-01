@@ -49,10 +49,10 @@ import { Skeleton } from '../ui/skeleton';
 
 // Mock services data (replace with API call in a real app)
 const services: Service[] = [
-  { id: 'haircut', name: 'Haircut', duration: 30, price: 25 },
-  { id: 'beard_trim', name: 'Beard Trim', duration: 20, price: 15 },
-  { id: 'haircut_beard', name: 'Haircut & Beard Trim', duration: 50, price: 35 },
-  { id: 'shave', name: 'Hot Towel Shave', duration: 40, price: 30 },
+  { id: 'haircut', name: 'Corte de pelo', duration: 30, price: 25 },
+  { id: 'beard_trim', name: 'Recorte de barba', duration: 20, price: 15 },
+  { id: 'haircut_beard', name: 'Corte de pelo y barba', duration: 50, price: 35 },
+  { id: 'shave', name: 'Afeitado con toalla caliente', duration: 40, price: 30 },
 ];
 
 const daysOfWeekMap: { [key: number]: keyof Omit<BarberSettings, 'rentAmount' | 'breakTimes' | 'lunchBreak'> } = {
@@ -202,10 +202,10 @@ async function getAvailableSlotsForDate(
 
 
 const bookingFormSchema = z.object({
-  clientName: z.string().min(2, { message: 'Please enter your full name (minimum 2 characters).' }).max(50, { message: 'Name cannot exceed 50 characters.'}),
-  serviceId: z.string({ required_error: 'Please select a service.' }).min(1, { message: 'Please select a service.' }),
-  date: z.date({ required_error: 'Please select a date.' }),
-  time: z.string({ required_error: 'Please select a time slot.' }).min(1, { message: 'Please select a time slot.' }),
+  clientName: z.string().min(2, { message: 'Por favor ingresa tu nombre completo (mínimo 2 caracteres).' }).max(50, { message: 'El nombre no puede exceder los 50 caracteres.'}),
+  serviceId: z.string({ required_error: 'Por favor selecciona un servicio.' }).min(1, { message: 'Por favor selecciona un servicio.' }),
+  date: z.date({ required_error: 'Por favor selecciona una fecha.' }),
+  time: z.string({ required_error: 'Por favor selecciona un horario.' }).min(1, { message: 'Por favor selecciona un horario.' }),
 });
 
 
@@ -307,8 +307,8 @@ export function ClientBooking() {
                    console.log("ClientBooking Effect: No available slots found for the selected criteria.");
                    // Use toast to inform user if no slots are available
                    toast({
-                    title: "No Slots Available",
-                    description: `No time slots are currently available for ${formatDate(selectedDateWatcher)}. Please try another date or service.`,
+                    title: "No hay horarios disponibles",
+                    description: `No hay horarios disponibles actualmente para el ${formatDate(selectedDateWatcher)}. Por favor intenta con otra fecha o servicio.`,
                     variant: "default",
                     duration: 5000,
                    });
@@ -318,8 +318,8 @@ export function ClientBooking() {
                 console.error("ClientBooking Effect: Failed to fetch available slots:", error);
                 setAvailableSlots([]);
                 toast({
-                    title: "Error Loading Slots",
-                    description: "Could not load available times. Please try again.",
+                    title: "Error al cargar horarios",
+                    description: "No se pudieron cargar los horarios disponibles. Por favor intenta nuevamente.",
                     variant: "destructive",
                 });
             })
@@ -344,7 +344,7 @@ export function ClientBooking() {
      if (!selectedService) {
       toast({
         title: "Error",
-        description: "Selected service not found.",
+        description: "Servicio seleccionado no encontrado.",
         variant: "destructive",
       });
       return;
@@ -353,8 +353,8 @@ export function ClientBooking() {
      // Additional check to ensure date and time are valid before submission
      if (!data.date || !data.time) {
         toast({
-            title: "Incomplete Information",
-            description: "Please ensure you have selected a valid date and time slot.",
+            title: "Información incompleta",
+            description: "Por favor asegúrate de haber seleccionado una fecha y horario válidos.",
             variant: "destructive",
         });
         return;
@@ -374,8 +374,8 @@ export function ClientBooking() {
       addClientAppointment(newAppointment);
       console.log("Appointment added successfully:", newAppointment);
       toast({
-        title: 'Appointment Booked!',
-        description: `${newAppointment.clientName}, your ${selectedService.name} is scheduled for ${formatDate(data.date)} at ${formatTime(data.time)}.`,
+        title: '¡Cita reservada!',
+        description: `${newAppointment.clientName}, tu ${selectedService.name} está agendado para el ${formatDate(data.date)} a las ${formatTime(data.time)}.`,
       });
       form.reset(); // Reset the entire form
       setAvailableSlots([]); // Explicitly clear slots as well
@@ -392,8 +392,8 @@ export function ClientBooking() {
     } catch (error) {
        console.error("Booking submission error:", error); // Log the actual error
        toast({
-        title: "Booking Failed",
-        description: "Could not save the appointment. Please try again or contact support.",
+        title: "Error al reservar",
+        description: "No se pudo guardar la cita. Por favor intenta nuevamente o contacta soporte.",
         variant: "destructive",
       });
     }
@@ -413,8 +413,8 @@ export function ClientBooking() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Schedule Your Visit</CardTitle>
-        <CardDescription>Choose a service, date, and time.</CardDescription>
+        <CardTitle>Agenda tu visita</CardTitle>
+        <CardDescription>Elige un servicio, fecha y horario.</CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -424,11 +424,11 @@ export function ClientBooking() {
               name="clientName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Full Name</FormLabel>
+                  <FormLabel>Nombre completo</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input placeholder="Enter your full name" className="pl-8" {...field} />
+                      <Input placeholder="Ingresa tu nombre completo" className="pl-8" {...field} />
                     </div>
                   </FormControl>
                   <FormMessage />
@@ -441,12 +441,12 @@ export function ClientBooking() {
               name="serviceId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Service</FormLabel>
+                  <FormLabel>Servicio</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <Scissors className="mr-2 h-4 w-4" />
-                        <SelectValue placeholder="Select a service" />
+                        <SelectValue placeholder="Selecciona un servicio" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -467,7 +467,7 @@ export function ClientBooking() {
               name="date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Date</FormLabel>
+                  <FormLabel>Fecha</FormLabel>
                   <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -483,7 +483,7 @@ export function ClientBooking() {
                           {field.value ? (
                             formatDate(field.value) // Use formatDate utility
                           ) : (
-                            <span>Pick a date</span>
+                            <span>Selecciona una fecha</span>
                           )}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
@@ -525,7 +525,7 @@ export function ClientBooking() {
                 name="time"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Available Time Slots</FormLabel>
+                    <FormLabel>Horarios disponibles</FormLabel>
                      <Select
                        onValueChange={field.onChange}
                        value={field.value}
@@ -536,8 +536,8 @@ export function ClientBooking() {
                         <SelectTrigger>
                            <Clock className="mr-2 h-4 w-4" />
                            <SelectValue placeholder={
-                              isLoadingSlots ? "Loading slots..." :
-                              (availableSlots.filter(slot => slot.available).length > 0 ? "Select a time" : "No slots available")
+                              isLoadingSlots ? "Cargando horarios..." :
+                              (availableSlots.filter(slot => slot.available).length > 0 ? "Selecciona un horario" : "No hay horarios disponibles")
                            } />
                         </SelectTrigger>
                       </FormControl>
@@ -554,14 +554,14 @@ export function ClientBooking() {
                                 ))
                            ) : (
                              <div className="p-4 text-center text-sm text-muted-foreground">
-                               No available slots found.
+                               No se encontraron horarios disponibles.
                              </div>
                            )}
                       </SelectContent>
                     </Select>
                     {selectedService && (
                         <FormDescription>
-                          Slots shown are start times for your {selectedService.duration} minute service.
+                          Los horarios mostrados son el inicio de tu servicio de {selectedService.duration} minutos.
                         </FormDescription>
                     )}
                     <FormMessage />
@@ -577,7 +577,7 @@ export function ClientBooking() {
               className="w-full"
               disabled={!form.formState.isValid || isLoadingSlots || !isClient || (!isLoadingSlots && availableSlots.filter(slot => slot.available).length === 0)}
               >
-               {isLoadingSlots ? 'Loading...' : 'Book Appointment'}
+               {isLoadingSlots ? 'Cargando...' : 'Reservar cita'}
             </Button>
           </CardFooter>
         </form>
@@ -586,4 +586,3 @@ export function ClientBooking() {
   );
 }
 
-    
