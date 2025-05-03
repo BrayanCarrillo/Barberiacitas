@@ -30,24 +30,25 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getBarberSettingsFromStorage, saveBarberSettingsToStorage } from '@/lib/settings-storage';
 import { Checkbox } from '@/components/ui/checkbox';
+import { formatCurrency } from '@/lib/currency-utils'; // Import currency formatter
 
 // Time format validation (HH:MM in 24-hour format)
-const timeStringSchema = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)");
+const timeStringSchema = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM)");
 
 const dailyScheduleSchema = z.object({
   available: z.boolean(),
   start: timeStringSchema.optional(),
   end: timeStringSchema.optional(),
 }).refine(data => !data.available || (data.start !== undefined && data.end !== undefined), {
-  message: "Start and end times are required when the day is available.",
+  message: "La hora de inicio y fin son requeridas cuando el día está disponible.",
   path: ["start"], // You can target the error to one of the fields
 }).refine(data => !data.available || (data.start! < data.end!), {
-    message: "Work end time must be after start time.",
+    message: "La hora de fin de trabajo debe ser posterior a la hora de inicio.",
     path: ["end"], // Attach error to the 'end' field
 });
 
 const settingsSchema = z.object({
-  rentAmount: z.coerce.number().positive({ message: 'Rent amount must be positive.' }), // Use coerce for automatic conversion
+  rentAmount: z.coerce.number().positive({ message: 'El monto de la renta debe ser positivo.' }).min(1, 'El monto de la renta debe ser positivo.'), // Use coerce for automatic conversion
   monday: dailyScheduleSchema,
   tuesday: dailyScheduleSchema,
   wednesday: dailyScheduleSchema,
@@ -59,14 +60,14 @@ const settingsSchema = z.object({
     start: timeStringSchema,
     end: timeStringSchema,
   }).refine(data => data.start < data.end, {
-      message: "Break end time must be after start time.",
+      message: "La hora de fin del descanso debe ser posterior a la hora de inicio.",
       path: ["end"],
   })),
   lunchBreak: z.object({
     start: timeStringSchema,
     end: timeStringSchema,
   }).refine(data => data.start < data.end, {
-      message: "Lunch end time must be after start time.",
+      message: "La hora de fin del almuerzo debe ser posterior a la hora de inicio.",
       path: ["end"],
   }),
 });
@@ -155,8 +156,8 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
       const success = saveBarberSettingsToStorage(barberId, data);
       if (success) {
         toast({
-          title: 'Settings Saved',
-          description: 'Your schedule has been updated successfully.',
+          title: 'Ajustes Guardados',
+          description: 'Tu horario ha sido actualizado exitosamente.',
         });
          form.reset(data); // Reset with the *saved* data to ensure form reflects stored state
          console.log("Settings saved and form reset:", data);
@@ -166,8 +167,8 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
     } catch (error) {
       console.error("Failed to save settings:", error);
       toast({
-        title: 'Save Failed',
-        description: 'Could not update your schedule. Please try again.',
+        title: 'Guardado Fallido',
+        description: 'No se pudo actualizar tu horario. Por favor, inténtalo de nuevo.',
         variant: 'destructive',
       });
     } finally {
@@ -229,8 +230,8 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Work Schedule Settings</CardTitle>
-        <CardDescription>Adjust your daily work hours, rent amount, lunch, and break times.</CardDescription>
+        <CardTitle>Ajustes del Horario de Trabajo</CardTitle>
+        <CardDescription>Ajusta tus horas de trabajo diarias, monto de renta, almuerzo y descansos.</CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -240,11 +241,12 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                   name="rentAmount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Rent Amount (COP)</FormLabel>
+                      <FormLabel>Monto de Renta (COP)</FormLabel>
                        <FormControl>
                          <div className="relative">
                            <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                           <Input type="number" step="100" placeholder="Enter monthly rent" className="pl-8" {...field} />
+                           {/* Ensure value is never undefined */}
+                           <Input type="number" step="100" placeholder="Ingresa la renta mensual" className="pl-8" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))} />
                          </div>
                        </FormControl>
                        <FormMessage />
@@ -284,7 +286,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                            name={`${fieldName}.start`}
                            render={({ field }) => (
                               <FormItem>
-                              <FormLabel>Start Time</FormLabel>
+                              <FormLabel>Hora de Inicio</FormLabel>
                               <FormControl>
                                  <Input type="time" {...field} value={field.value ?? ""} />
                               </FormControl>
@@ -297,7 +299,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                            name={`${fieldName}.end`}
                            render={({ field }) => (
                               <FormItem>
-                              <FormLabel>End Time</FormLabel>
+                              <FormLabel>Hora de Fin</FormLabel>
                               <FormControl>
                                   <Input type="time" {...field} value={field.value ?? ""} />
                               </FormControl>
@@ -313,12 +315,12 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                         )}
                          {form.formState.errors[fieldName]?.start?.message && (
                               <p className="text-sm font-medium text-destructive sm:col-span-2">
-                                  Start time: {form.formState.errors[fieldName]?.start?.message}
+                                  Hora de Inicio: {form.formState.errors[fieldName]?.start?.message}
                               </p>
                          )}
                           {form.formState.errors[fieldName]?.end?.message && (
                               <p className="text-sm font-medium text-destructive sm:col-span-2">
-                                  End time: {form.formState.errors[fieldName]?.end?.message}
+                                  Hora de Fin: {form.formState.errors[fieldName]?.end?.message}
                               </p>
                           )}
                         </div>
@@ -332,14 +334,14 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
 
              {/* Lunch Break */}
              <div>
-              <h3 className="text-lg font-medium mb-2">Lunch Break</h3>
+              <h3 className="text-lg font-medium mb-2">Descanso de Almuerzo</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <FormField
                   control={form.control}
                   name="lunchBreak.start"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Start Time</FormLabel>
+                      <FormLabel>Hora de Inicio</FormLabel>
                       <FormControl>
                         <Input type="time" {...field} value={field.value ?? ""} />
                       </FormControl>
@@ -352,7 +354,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                   name="lunchBreak.end"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>End Time</FormLabel>
+                      <FormLabel>Hora de Fin</FormLabel>
                       <FormControl>
                         <Input type="time" {...field} value={field.value ?? ""} />
                       </FormControl>
@@ -369,7 +371,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                )}
                <FormDescription className="mt-2 flex items-center gap-1 text-xs">
                  <Clock className="h-3 w-3" />
-                 Ensure lunch time is within your work hours.
+                 Asegúrate de que la hora del almuerzo esté dentro de tus horas de trabajo.
                </FormDescription>
             </div>
 
@@ -377,7 +379,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
 
              {/* Break Times */}
             <div>
-               <h3 className="text-lg font-medium mb-2">Other Breaks</h3>
+               <h3 className="text-lg font-medium mb-2">Otros Descansos</h3>
                {breakFields.map((field, index) => (
                  <div key={field.id} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-4 items-end mb-4 p-4 border rounded-md bg-muted/50">
                     <FormField
@@ -385,7 +387,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                      name={`breakTimes.${index}.start`}
                      render={({ field: f }) => (
                        <FormItem>
-                         <FormLabel>Break Start</FormLabel>
+                         <FormLabel>Inicio del Descanso</FormLabel>
                          <FormControl>
                            <Input type="time" {...f} value={f.value ?? ""} />
                          </FormControl>
@@ -398,7 +400,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                      name={`breakTimes.${index}.end`}
                      render={({ field: f }) => (
                        <FormItem>
-                         <FormLabel>Break End</FormLabel>
+                         <FormLabel>Fin del Descanso</FormLabel>
                          <FormControl>
                            <Input type="time" {...f} value={f.value ?? ""} />
                          </FormControl>
@@ -417,7 +419,7 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                       variant="destructive"
                       size="icon"
                       onClick={() => removeBreak(index)}
-                      aria-label="Remove break"
+                      aria-label="Eliminar descanso"
                      >
                      <Trash2 className="h-4 w-4" />
                    </Button>
@@ -430,11 +432,11 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
                   onClick={() => appendBreak({ start: '', end: '' })}
                  >
                   <PlusCircle className="mr-2 h-4 w-4" />
-                  Add Break
+                  Agregar Descanso
                 </Button>
                  <FormDescription className="mt-2 flex items-center gap-1 text-xs">
                   <Clock className="h-3 w-3" />
-                   Define any additional short breaks during your work hours.
+                   Define cualquier descanso corto adicional durante tus horas de trabajo.
                  </FormDescription>
             </div>
 
@@ -442,9 +444,9 @@ export function SettingsPanel({ barberId }: SettingsPanelProps) {
           <CardFooter>
             <Button type="submit" disabled={isSaving || isLoading || !isClient || !form.formState.isDirty}>
                <Save className="mr-2 h-4 w-4" />
-              {isSaving ? 'Saving...' : 'Save Schedule'}
+              {isSaving ? 'Guardando...' : 'Guardar Horario'}
             </Button>
-             {!form.formState.isDirty && !isLoading && isClient && <span className="ml-4 text-sm text-muted-foreground">No changes to save</span>}
+             {!form.formState.isDirty && !isLoading && isClient && <span className="ml-4 text-sm text-muted-foreground">Sin cambios para guardar</span>}
           </CardFooter>
         </form>
       </Form>
