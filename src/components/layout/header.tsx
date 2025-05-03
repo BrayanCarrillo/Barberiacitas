@@ -16,8 +16,8 @@ export function Header() {
   }, []);
 
   const navItems = [
-    { href: '/', label: 'Client Booking' },
-    { href: '/barber', label: 'Barber Dashboard' },
+    { href: '/', label: 'Reserva Cliente' }, // Translate "Client Booking"
+    { href: '/barber', label: 'Panel del Barbero' }, // Translate "Barber Dashboard"
   ];
 
   return (

@@ -12,7 +12,7 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter, // Added CardFooter import
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -215,10 +215,10 @@ async function getAvailableSlotsForDate(
 
 
 const bookingFormSchema = z.object({
-  clientName: z.string().min(2, { message: 'Please enter your full name (minimum 2 characters).' }).max(50, { message: 'Name cannot exceed 50 characters.'}),
-  itemId: z.string({ required_error: 'Please select a service or combo.' }).min(1, { message: 'Please select a service or combo.' }), // Renamed from serviceId
-  date: z.date({ required_error: 'Please select a date.' }),
-  time: z.string({ required_error: 'Please select a time slot.' }).min(1, { message: 'Please select a time slot.' }),
+  clientName: z.string().min(2, { message: 'Por favor ingresa tu nombre completo (mínimo 2 caracteres).' }).max(50, { message: 'El nombre no puede exceder los 50 caracteres.'}),
+  itemId: z.string({ required_error: 'Por favor selecciona un servicio o combo.' }).min(1, { message: 'Por favor selecciona un servicio o combo.' }), // Renamed from serviceId
+  date: z.date({ required_error: 'Por favor selecciona una fecha.' }),
+  time: z.string({ required_error: 'Por favor selecciona un horario.' }).min(1, { message: 'Por favor selecciona un horario.' }),
 });
 
 
@@ -392,8 +392,8 @@ export function ClientBooking() {
          if (hasBooked) {
              console.log(`ClientBooking Effect: Already booked for ${selectedDateString}`);
             toast({
-               title: "Booking Limit",
-               description: "You have already reached your booking limit for this day.",
+               title: "Límite de reservas",
+               description: "Ya has alcanzado el límite de reservas para este día.",
                variant: "default",
             });
             setIsLoadingSlots(false);
@@ -405,8 +405,8 @@ export function ClientBooking() {
        if (hasExceededBookingLimit(existingAppointments, selectedDateWatcher, maxBookingsPerDay)) {
            console.log(`ClientBooking Effect: Booking limit exceeded for ${selectedDateString} (runtime check)`);
           toast({
-             title: "Booking Limit Exceeded",
-             description: `You have reached the maximum limit of ${maxBookingsPerDay} bookings for this day.`,
+             title: "Límite de Reservas Excedido",
+             description: `Has alcanzado el límite máximo de ${maxBookingsPerDay} reservas para este día.`,
              variant: "warning",
           });
           setIsLoadingSlots(false);
@@ -421,8 +421,8 @@ export function ClientBooking() {
           if (!hasAvailableSlots) {
              console.log("ClientBooking Effect: No available slots found for the selected criteria.");
              toast({
-              title: "No time slots available",
-              description: `No time slots are currently available for ${formatDate(selectedDateWatcher)}. Please try another date or service.`,
+              title: "No hay horarios disponibles",
+              description: `No hay horarios disponibles para ${formatDate(selectedDateWatcher)}. Por favor intenta otra fecha o servicio.`,
               variant: "default",
               duration: 5000,
              });
@@ -432,8 +432,8 @@ export function ClientBooking() {
           console.error("ClientBooking Effect: Failed to fetch available slots:", error);
           setAvailableSlots([]); // Ensure slots are cleared on error
           toast({
-              title: "Error Loading Slots",
-              description: "Could not load available time slots. Please try again.",
+              title: "Error Cargando Horarios",
+              description: "No se pudieron cargar los horarios disponibles. Por favor, inténtalo de nuevo.",
               variant: "destructive",
           });
       })
@@ -463,8 +463,8 @@ export function ClientBooking() {
 
          if (hasAlreadyBooked) {
             toast({
-               title: "Booking Limit",
-               description: "You have already reached your booking limit for this day.",
+               title: "Límite de Reservas",
+               description: "Ya has alcanzado tu límite de reservas para este día.",
                variant: "default",
             });
             return;
@@ -473,8 +473,8 @@ export function ClientBooking() {
       // Check if booking limit has been exceeded *before* submitting (runtime check)
       if (hasExceededBookingLimit(existingAppointments, data.date, maxBookingsPerDay)) {
          toast({
-            title: "Booking Limit Exceeded",
-            description: `You have reached the maximum limit of ${maxBookingsPerDay} bookings for this day.`,
+            title: "Límite de Reservas Excedido",
+            description: `Has alcanzado el límite máximo de ${maxBookingsPerDay} reservas para este día.`,
             variant: "warning",
          });
          return;
@@ -486,7 +486,7 @@ export function ClientBooking() {
      if (!currentSelectedItem) {
       toast({
         title: "Error",
-        description: "Selected service or combo not found or is no longer available.",
+        description: "El servicio o combo seleccionado no se encontró o ya no está disponible.",
         variant: "destructive",
       });
       return;
@@ -502,8 +502,8 @@ export function ClientBooking() {
 
      if (bookedItemDuration <= 0) {
           toast({
-            title: "Booking Error",
-            description: "Cannot book an item with zero duration.",
+            title: "Error de Reserva",
+            description: "No se puede reservar un servicio o combo sin duración.",
             variant: "destructive",
           });
           return;
@@ -511,8 +511,8 @@ export function ClientBooking() {
 
      if (!data.date || !data.time) {
         toast({
-            title: "Incomplete Information",
-            description: "Please ensure you have selected a valid date and time slot.",
+            title: "Información Incompleta",
+            description: "Por favor asegúrate de seleccionar una fecha y hora válidas.",
             variant: "destructive",
         });
         return;
@@ -540,8 +540,8 @@ export function ClientBooking() {
       addClientAppointment(newAppointment);
       console.log("Appointment added successfully:", newAppointment);
       toast({
-        title: 'Appointment Booked!',
-        description: `${newAppointment.clientName}, your ${newAppointment.bookedItem.name} is scheduled for ${formatDate(data.date)} at ${formatTime(data.time)}.`,
+        title: '¡Reserva Exitosa!',
+        description: `${newAppointment.clientName}, tu ${newAppointment.bookedItem.name} está agendado para el ${formatDate(data.date)} a las ${formatTime(data.time)}.`,
       });
 
        // After successful booking, store the booking status in local storage
@@ -560,8 +560,8 @@ export function ClientBooking() {
     } catch (error) {
        console.error("Booking submission error:", error);
        toast({
-        title: "Booking Error",
-        description: "Could not save the appointment. Please try again or contact support.",
+        title: "Error de Reserva",
+        description: "No se pudo guardar la reserva. Por favor inténtalo de nuevo o contacta soporte.",
         variant: "destructive",
       });
     }
@@ -581,8 +581,8 @@ export function ClientBooking() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Book Your Visit</CardTitle>
-        <CardDescription>Choose a service or combo, date, and time.</CardDescription>
+        <CardTitle>Reserva tu Visita</CardTitle>
+        <CardDescription>Elige un servicio o combo, fecha y hora.</CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -592,11 +592,11 @@ export function ClientBooking() {
               name="clientName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Full Name</FormLabel>
+                  <FormLabel>Nombre Completo</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input placeholder="Enter your full name" className="pl-8" {...field} />
+                      <Input placeholder="Ingresa tu nombre completo" className="pl-8" {...field} />
                     </div>
                   </FormControl>
                   <FormMessage />
@@ -610,20 +610,20 @@ export function ClientBooking() {
               name="itemId" // Changed from serviceId
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Service / Combo</FormLabel>
+                  <FormLabel>Servicio / Combo</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                          {/* Use appropriate icon based on selected item type */}
                          {selectedItem?.type === 'combo' ? <Star className="mr-2 h-4 w-4" /> : <Scissors className="mr-2 h-4 w-4" />}
-                        <SelectValue placeholder="Select a service or combo" />
+                        <SelectValue placeholder="Selecciona un servicio o combo" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {bookableItems.length === 0 && <SelectItem value="loading" disabled>Loading items...</SelectItem>}
+                      {bookableItems.length === 0 && <SelectItem value="loading" disabled>Cargando items...</SelectItem>}
                       {/* Group services and combos */}
                        {allServices.length > 0 && (
-                          <FormLabel className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Services</FormLabel>
+                          <FormLabel className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Servicios</FormLabel>
                        )}
                        {allServices.map((item) => (
                             <SelectItem key={item.id} value={item.id}>
@@ -656,7 +656,7 @@ export function ClientBooking() {
               name="date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Date</FormLabel>
+                  <FormLabel>Fecha</FormLabel>
                   <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -671,7 +671,7 @@ export function ClientBooking() {
                           {field.value ? (
                             formatDate(field.value)
                           ) : (
-                            <span>Select a date</span>
+                            <span>Selecciona una fecha</span>
                           )}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
@@ -711,7 +711,7 @@ export function ClientBooking() {
                 name="time"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Available Time Slots</FormLabel>
+                    <FormLabel>Horarios Disponibles</FormLabel>
                      <Select
                        onValueChange={field.onChange}
                        value={field.value}
@@ -721,9 +721,9 @@ export function ClientBooking() {
                         <SelectTrigger>
                            <Clock className="mr-2 h-4 w-4" />
                            <SelectValue placeholder={
-                              isLoadingSlots ? "Loading slots..." :
-                              selectedDateHasBooked ? "Booking limit reached for this day" :
-                              (availableSlots.filter(slot => slot.available).length > 0 ? "Select a time slot" : "No slots available")
+                              isLoadingSlots ? "Cargando horarios..." :
+                              selectedDateHasBooked ? "Límite de reservas alcanzado" :
+                              (availableSlots.filter(slot => slot.available).length > 0 ? "Selecciona un horario" : "No hay horarios disponibles")
                            } />
                         </SelectTrigger>
                       </FormControl>
@@ -740,14 +740,14 @@ export function ClientBooking() {
                                 ))
                            ) : (
                              <div className="p-4 text-center text-sm text-muted-foreground">
-                               No available slots found.
+                               No se encontraron horarios disponibles.
                              </div>
                            )}
                       </SelectContent>
                     </Select>
                     {selectedItem && selectedItemDuration > 0 && (
                         <FormDescription>
-                          Time slots shown are the start of your {selectedItemDuration} minute appointment.
+                          Los horarios mostrados son el inicio de tu cita de {selectedItemDuration} minutos.
                         </FormDescription>
                     )}
                     <FormMessage />
@@ -762,7 +762,7 @@ export function ClientBooking() {
               className="w-full"
               disabled={!form.formState.isValid || isLoadingSlots || !isClient || selectedDateHasBooked || (!isLoadingSlots && availableSlots.filter(slot => slot.available).length === 0) || selectedItemDuration <= 0}
               >
-               {isLoadingSlots ? 'Loading...' : 'Book Appointment'}
+               {isLoadingSlots ? 'Cargando...' : 'Reservar Cita'}
             </Button>
           </CardFooter>
         </form>

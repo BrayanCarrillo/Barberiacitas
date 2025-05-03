@@ -64,8 +64,8 @@ export function ClientAppointments() {
         console.error("Error fetching appointments:", error);
         setAppointments([]); // Set to empty array on error
          toast({
-            title: "Error loading appointments",
-            description: "Could not load your saved appointments.",
+            title: "Error cargando citas",
+            description: "No se pudieron cargar tus citas guardadas.",
             variant: "destructive",
         });
     } finally {
@@ -103,15 +103,15 @@ export function ClientAppointments() {
       removeClientAppointment(appointmentId);
       fetchAppointments(); // Refresh the list
       toast({
-        title: 'Appointment cancelled',
-        description: 'Your appointment has been successfully cancelled.',
+        title: 'Cita cancelada',
+        description: 'Tu cita ha sido cancelada exitosamente.',
       });
        // Dispatch event to notify other components (like ClientBooking)
        window.dispatchEvent(new StorageEvent('storage', { key: 'barberEaseClientAppointments' }));
     } catch (error) {
        toast({
-        title: "Cancellation Error",
-        description: "Could not cancel the appointment. Please try again.",
+        title: "Error de Cancelación",
+        description: "No se pudo cancelar la cita. Por favor, inténtalo de nuevo.",
         variant: "destructive",
       });
     }
@@ -137,15 +137,15 @@ export function ClientAppointments() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Your Appointments</CardTitle>
-        <CardDescription>View your upcoming scheduled appointments.</CardDescription>
+        <CardTitle>Tus Citas</CardTitle>
+        <CardDescription>Mira tus próximas citas agendadas.</CardDescription>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[400px] pr-4">
           {isLoading || appointments === null ? (
             renderSkeleton()
           ) : appointments.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">You have no upcoming appointments.</p>
+            <p className="text-muted-foreground text-center py-8">No tienes próximas citas agendadas.</p>
           ) : (
             <ul className="space-y-4">
               {appointments.map((app, index) => (
@@ -156,34 +156,34 @@ export function ClientAppointments() {
                        <p className="font-semibold">{app.bookedItem.name}</p>
                        <div className="flex items-center text-sm text-muted-foreground gap-2">
                          <Calendar className="h-4 w-4" />
-                         <span>{format(app.date, 'EEE, MMM d, yyyy')}</span>
+                         <span>{format(app.date, 'EEE, d MMM, yyyy')}</span> {/* Consider Spanish date format */}
                        </div>
                        <div className="flex items-center text-sm text-muted-foreground gap-2">
                          <Clock className="h-4 w-4" />
                          <span>{formatTime(app.time)}</span>
                        </div>
                       {/* Use bookedItem price */}
-                      <p className="text-sm text-muted-foreground">Price: {formatCurrency(app.bookedItem.price)}</p>
+                      <p className="text-sm text-muted-foreground">Precio: {formatCurrency(app.bookedItem.price)}</p>
                      </div>
                      <AlertDialog>
                        <AlertDialogTrigger asChild>
                           <Button variant="outline" size="sm" className="w-full sm:w-auto">
                            <Trash2 className="h-4 w-4 mr-2" />
-                           Cancel
+                           Cancelar
                          </Button>
                        </AlertDialogTrigger>
                        <AlertDialogContent>
                          <AlertDialogHeader>
-                           <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                           <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                            <AlertDialogDescription>
                               {/* Use bookedItem name */}
-                             This action cannot be undone. This will permanently cancel your appointment for {app.bookedItem.name} on {format(app.date, 'PPP')} at {formatTime(app.time)}.
+                             Esta acción no se puede deshacer. Esto cancelará permanentemente tu cita para {app.bookedItem.name} el {format(app.date, 'PPP')} a las {formatTime(app.time)}.
                            </AlertDialogDescription>
                          </AlertDialogHeader>
                          <AlertDialogFooter>
-                           <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
+                           <AlertDialogCancel>Mantener Cita</AlertDialogCancel>
                            <AlertDialogAction onClick={() => handleCancelAppointment(app.id)}>
-                             Yes, cancel
+                             Sí, cancelar
                            </AlertDialogAction>
                          </AlertDialogFooter>
                        </AlertDialogContent>
