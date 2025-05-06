@@ -119,17 +119,21 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
      };
   }, [fetchAndFilterAppointments]); // Only depends on the fetch function now
 
-   // Use bookedItem.price for revenue calculation
-   const totalRevenue = filteredAppointments.reduce((sum, app) => sum + app.bookedItem.price, 0);
-   const totalClients = filteredAppointments.length;
+   // Filter for completed appointments for revenue calculation
+   const completedAppointments = filteredAppointments.filter(app => app.status === 'completed');
+
+   // Use bookedItem.price for revenue calculation from completed appointments
+   const totalRevenue = completedAppointments.reduce((sum, app) => sum + app.bookedItem.price, 0);
+   const totalClients = filteredAppointments.length; // Total clients seen (regardless of status)
+
 
    const dailyRevenueData: Omit<DailyRevenue, 'dateObj'>[] = React.useMemo(() => {
     const revenueMap = new Map<string, { total: number; dateObj: Date }>();
 
-    filteredAppointments.forEach(app => {
+    // Calculate revenue only from completed appointments
+    completedAppointments.forEach(app => {
        const dateStr = format(app.date, 'yyyy-MM-dd'); // Use ISO date string as key
        const current = revenueMap.get(dateStr) || { total: 0, dateObj: app.date };
-       // Use bookedItem.price
        current.total += app.bookedItem.price;
        revenueMap.set(dateStr, current);
     });
@@ -140,10 +144,11 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
         .map(data => ({
             name: format(data.dateObj, 'MMM d'), // Format name for chart label
             total: data.total,
-            // dateObj: data.dateObj // We don't strictly need dateObj in the final array for the chart
         }));
-   }, [filteredAppointments]);
+   }, [completedAppointments]); // Depends on completed appointments now
 
+
+   // Service popularity uses all appointments in the period
    const servicePopularityData: ServiceCount[] = React.useMemo(() => {
     const serviceCounts = new Map<string, number>();
 
@@ -156,13 +161,14 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
     return Array.from(serviceCounts).map(([name, count]) => ({ name, count }));
 }, [filteredAppointments]);
 
-   // Calculate daily cash drawer amount
+   // Calculate daily cash drawer amount from today's *completed* appointments
    const dailyCashDrawer = React.useMemo(() => {
       if (timePeriod === 'today') {
-         return totalRevenue;
+          const todaysCompleted = completedAppointments.filter(app => isSameDay(app.date, new Date()));
+          return todaysCompleted.reduce((sum, app) => sum + app.bookedItem.price, 0);
       }
       return 0;
-   }, [timePeriod, totalRevenue]);
+   }, [timePeriod, completedAppointments]);
 
 
    const appointmentStatusData = React.useMemo(() => {
@@ -283,7 +289,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(totalRevenue)}</div>
-            <p className="text-xs text-muted-foreground">Ingresos para el periodo seleccionado</p>
+            <p className="text-xs text-muted-foreground">Ingresos completados en el periodo</p>
           </CardContent>
         </Card>
          <Card>
@@ -293,7 +299,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
           </CardHeader>
           <CardContent>
              <div className="text-2xl font-bold">{formatCurrency(dailyCashDrawer)}</div>
-             <p className="text-xs text-muted-foreground">Monto en efectivo de las ventas de hoy</p>
+             <p className="text-xs text-muted-foreground">Efectivo de citas completadas hoy</p>
           </CardContent>
         </Card>
         <Card>
@@ -303,7 +309,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalClients}</div>
-             <p className="text-xs text-muted-foreground">Clientes atendidos en el periodo seleccionado</p>
+             <p className="text-xs text-muted-foreground">Clientes agendados en el periodo</p>
           </CardContent>
         </Card>
       </div>
@@ -311,12 +317,12 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
       <Card className="lg:col-span-4">
         <CardHeader>
           <CardTitle>Resumen de Ingresos</CardTitle>
-          <CardDescription>Ingresos diarios para el periodo seleccionado.</CardDescription>
+          <CardDescription>Ingresos diarios completados para el periodo seleccionado.</CardDescription>
         </CardHeader>
         <CardContent className="pl-2">
           {dailyRevenueData.length === 0 ? (
              <div className="h-[350px] flex items-center justify-center text-muted-foreground">
-                No hay datos de ingresos para este periodo.
+                No hay datos de ingresos completados para este periodo.
              </div>
            ) : (
            <ResponsiveContainer width="100%" height={350}>
@@ -419,9 +425,12 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                          labelLine={false}
                          // Fix: Access name and percent from props.payload directly
                          label={(props) => {
-                            const { name, percent } = props.payload || {}; // Use payload
-                            if (name === undefined || percent === undefined) return null;
-                            return `${name} (${(percent * 100).toFixed(0)}%)`;
+                             const entry = props.payload || {}; // Use payload or default to empty object
+                             const { name, value, percent } = entry; // Destructure payload
+
+                             if (name === undefined || value === undefined || percent === undefined) return null;
+                             // Show name and count in the label
+                             return `${name} (${value})`;
                          }}
                       >
                          {appointmentStatusData.map((entry, index) => (
@@ -432,7 +441,11 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                          contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }}
                          labelStyle={{ color: 'hsl(var(--foreground))' }}
                          itemStyle={{ color: 'hsl(var(--foreground))' }}
-                         formatter={(value: number, name: string) => [`${value} citas`, name]} // Format tooltip for status count
+                         formatter={(value: number, name: string, props: any) => {
+                             // Format tooltip to show count and percentage
+                             const percentage = props?.payload?.percentage || '0.0'; // Access percentage from payload
+                             return [`${value} (${percentage}%)`, name];
+                         }}
                       />
                     </PieChart>
                  </ResponsiveContainer>

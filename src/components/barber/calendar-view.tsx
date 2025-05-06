@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils'; // Import cn utility
 
 // Function to get appointments filtered by date from localStorage
 function getBarberAppointmentsForDate(date: Date): Appointment[] {
@@ -136,28 +137,69 @@ export function CalendarView({ barberId }: CalendarViewProps) {
             app.id === appointmentId ? { ...app, status: status } : app
          );
          saveClientAppointments(updatedAppointments);
-         setAppointments(updatedAppointments.filter(app => isSameDay(app.date, selectedDate)));
+          // Re-fetch and filter for the current date to update the UI correctly
+         if (selectedDate) {
+            const appointmentsForDate = updatedAppointments.filter(app => isSameDay(app.date, selectedDate))
+             .sort((a, b) => {
+                const timeAStr = a.time || '00:00';
+                const timeBStr = b.time || '00:00';
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                const timeA = parse(timeAStr, 'HH:mm', dateA);
+                const timeB = parse(timeBStr, 'HH:mm', dateB);
+                return timeA.getTime() - timeB.getTime();
+             });
+            setAppointments(appointmentsForDate);
+         }
+
          toast({
-            title: `Appointment ${status}`,
-            description: `Appointment status updated to ${status}.`,
+            title: `Cita ${status === 'completed' ? 'completada' : status === 'cancelled' ? 'cancelada' : 'marcada como no presentado'}`,
+            description: `Estado de la cita actualizado a ${status}.`,
          });
       } catch (error) {
-         console.error("Error updating appointment status:", error);
+         console.error("Error actualizando estado de la cita:", error);
          toast({
-            title: "Update Failed",
-            description: "Could not update appointment status. Please try again.",
+            title: "Actualización Fallida",
+            description: "No se pudo actualizar el estado de la cita. Inténtalo de nuevo.",
             variant: "destructive",
          });
       }
    };
+
+    const getStatusBadgeVariant = (status?: 'completed' | 'cancelled' | 'noShow'): 'default' | 'secondary' | 'destructive' => {
+        switch (status) {
+            case 'completed':
+                return 'default';
+            case 'cancelled':
+                return 'destructive';
+            case 'noShow':
+                return 'secondary';
+            default:
+                return 'outline'; // Default or for pending/undefined status
+        }
+    };
+
+     const getStatusIcon = (status?: 'completed' | 'cancelled' | 'noShow') => {
+        switch (status) {
+            case 'completed':
+                return <CheckCircle className="h-4 w-4 text-green-600" />;
+            case 'cancelled':
+                return <XCircle className="h-4 w-4 text-red-600" />;
+            case 'noShow':
+                return <UserX className="h-4 w-4 text-gray-500" />;
+            default:
+                return null;
+        }
+    };
+
 
   if (!selectedDate || !currentClientTime || isLoading || appointments === null) {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
         <Card className="lg:col-span-1 flex flex-col">
           <CardHeader>
-            <CardTitle>Select Date</CardTitle>
-            <CardDescription>Choose a date to view appointments.</CardDescription>
+            <CardTitle>Seleccionar Fecha</CardTitle>
+            <CardDescription>Elige una fecha para ver las citas.</CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center items-start pt-0 flex-grow">
              {!selectedDate ? <Skeleton className="w-[280px] h-[330px]" /> : <Calendar mode="single" selected={selectedDate} disabled className="p-0"/> }
@@ -170,9 +212,9 @@ export function CalendarView({ barberId }: CalendarViewProps) {
           </CardHeader>
           <CardContent className="flex-grow flex flex-col min-h-0">
              <div className="space-y-4 pt-2">
-               <Skeleton className="h-20 w-full rounded-lg" />
-               <Skeleton className="h-20 w-full rounded-lg" />
-               <Skeleton className="h-20 w-full rounded-lg" />
+               <Skeleton className="h-24 w-full rounded-lg" />
+               <Skeleton className="h-24 w-full rounded-lg" />
+               <Skeleton className="h-24 w-full rounded-lg" />
              </div>
           </CardContent>
         </Card>
@@ -184,8 +226,8 @@ export function CalendarView({ barberId }: CalendarViewProps) {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
       <Card className="lg:col-span-1 flex flex-col">
          <CardHeader>
-           <CardTitle>Select Date</CardTitle>
-           <CardDescription>Choose a date to view appointments.</CardDescription>
+           <CardTitle>Seleccionar Fecha</CardTitle>
+           <CardDescription>Elige una fecha para ver las citas.</CardDescription>
          </CardHeader>
         <CardContent className="flex justify-center items-start pt-0 flex-grow">
            <Calendar
@@ -199,34 +241,41 @@ export function CalendarView({ barberId }: CalendarViewProps) {
 
       <Card className="lg:col-span-2 flex flex-col">
         <CardHeader>
-          <CardTitle>Appointments for {format(selectedDate, 'PPP')}</CardTitle>
-          <CardDescription>Details of scheduled appointments for the selected date.</CardDescription>
+          <CardTitle>Citas para {format(selectedDate, 'PPP')}</CardTitle>
+          <CardDescription>Detalles de citas agendadas para la fecha seleccionada.</CardDescription>
         </CardHeader>
         <CardContent className="flex-grow flex flex-col min-h-0">
           <ScrollArea className="flex-grow pr-4 -mr-4">
             {appointments.length === 0 ? (
-              <p className="text-muted-foreground text-center py-10">No appointments scheduled for this date.</p>
+              <p className="text-muted-foreground text-center py-10">No hay citas agendadas para esta fecha.</p>
             ) : (
               <ul className="space-y-4">
                 {appointments.map((app, index) => {
                    const appointmentTime = parse(app.time || '00:00', 'HH:mm', selectedDate);
                    const isPast = isBefore(appointmentTime, currentClientTime);
                    const isCombo = app.bookedItem.type === 'combo';
+                   const statusIcon = getStatusIcon(app.status);
 
                   return (
                   <React.Fragment key={app.id}>
-                    <li className={`p-4 rounded-lg border ${isPast ? 'bg-muted/50 opacity-70' : 'bg-card'}`}>
-                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                          <div className="space-y-1 flex-grow">
+                    <li className={cn(
+                        "p-4 rounded-lg border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4",
+                        isPast && app.status !== 'completed' ? 'bg-muted/50 opacity-70' : 'bg-card', // Dim past, non-completed appointments
+                        app.status === 'cancelled' && 'border-destructive/50 bg-destructive/10',
+                        app.status === 'noShow' && 'border-muted-foreground/50 bg-muted/30'
+                     )}>
+                       <div className="space-y-1 flex-grow">
                            <div className="flex items-center gap-2">
                              <User className="h-4 w-4 text-muted-foreground" />
-                             <span className="font-semibold">{app.clientName ?? 'Unknown Client'}</span>
-                             {isPast && <Badge variant="outline">Past</Badge>}
+                             <span className="font-semibold">{app.clientName ?? 'Cliente Desconocido'}</span>
+                              {statusIcon && <span className="ml-1">{statusIcon}</span>}
+                             {isPast && app.status !== 'completed' && <Badge variant="outline">Pasada</Badge>}
+                               <Badge variant={getStatusBadgeVariant(app.status)} className="ml-auto sm:ml-2">
+                                   {app.status ? app.status.charAt(0).toUpperCase() + app.status.slice(1) : 'Agendada'}
+                               </Badge>
                            </div>
                            <div className="flex items-center text-sm text-muted-foreground gap-2">
-                             {/* Icon based on type */}
                              {isCombo ? <Star className="h-4 w-4 text-primary" /> : <Scissors className="h-4 w-4" />}
-                             {/* Use bookedItem details */}
                              <span>{app.bookedItem.name} ({formatCurrency(app.bookedItem.price)})</span>
                            </div>
                            <div className="flex items-center text-sm text-muted-foreground gap-2">
@@ -236,23 +285,23 @@ export function CalendarView({ barberId }: CalendarViewProps) {
                          </div>
                            <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                 <Button variant="outline" size="sm">
-                                    Update Status
+                                 <Button variant="outline" size="sm" className="w-full sm:w-auto shrink-0">
+                                    Actualizar Estado
                                  </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                 <DropdownMenuItem onClick={() => handleStatusChange(app.id, 'completed')}>
-                                    <CheckCircle className="mr-2 h-4 w-4" /> Completed
+                                 <DropdownMenuItem onClick={() => handleStatusChange(app.id, 'completed')} disabled={app.status === 'completed'}>
+                                    <CheckCircle className="mr-2 h-4 w-4" /> Completada
                                  </DropdownMenuItem>
-                                 <DropdownMenuItem onClick={() => handleStatusChange(app.id, 'cancelled')}>
-                                    <XCircle className="mr-2 h-4 w-4" /> Cancelled
+                                 <DropdownMenuItem onClick={() => handleStatusChange(app.id, 'cancelled')} disabled={app.status === 'cancelled'}>
+                                    <XCircle className="mr-2 h-4 w-4" /> Cancelada
                                  </DropdownMenuItem>
-                                 <DropdownMenuItem onClick={() => handleStatusChange(app.id, 'noShow')}>
-                                    <UserX className="mr-2 h-4 w-4" /> No Show
+                                 <DropdownMenuItem onClick={() => handleStatusChange(app.id, 'noShow')} disabled={app.status === 'noShow'}>
+                                    <UserX className="mr-2 h-4 w-4" /> No se presentó
                                  </DropdownMenuItem>
                               </DropdownMenuContent>
                            </DropdownMenu>
-                       </div>
+                       {/* Remove closing div here, it was inside the li */}
                     </li>
                     {index < appointments.length - 1 && <Separator className="my-4" />}
                   </React.Fragment>
