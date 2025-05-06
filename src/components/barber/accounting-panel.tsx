@@ -1,4 +1,4 @@
-"use client";
+ "use client";
 
 import * as React from 'react';
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, subWeeks, isWithinInterval, parseISO, compareAsc } from 'date-fns'; // Added parseISO, compareAsc
@@ -191,7 +191,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
        <Card>
          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-           <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+           <CardTitle className="text-sm font-medium">Ingresos Totales</CardTitle>
            <DollarSign className="h-4 w-4 text-muted-foreground" />
          </CardHeader>
          <CardContent>
@@ -201,7 +201,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
        </Card>
         <Card>
          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-           <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
+           <CardTitle className="text-sm font-medium">Total Clientes</CardTitle>
            <Users className="h-4 w-4 text-muted-foreground" />
          </CardHeader>
          <CardContent>
@@ -211,7 +211,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
        </Card>
        <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-               <CardTitle className="text-sm font-medium">Daily Cash Drawer</CardTitle>
+               <CardTitle className="text-sm font-medium">Cierre de Caja Diario</CardTitle>
                <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -222,7 +222,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
          <div className="lg:col-span-4 pt-6">
          <Card>
             <CardHeader>
-              <CardTitle>Revenue Overview</CardTitle>
+              <CardTitle>Resumen de Ingresos</CardTitle>
                <Skeleton className="h-4 w-48 mt-1" />
             </CardHeader>
             <CardContent className="pl-2">
@@ -232,8 +232,8 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
        </div>
        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Service Popularity</CardTitle>
-            <CardDescription>Most booked services</CardDescription>
+            <CardTitle>Popularidad del Servicio</CardTitle>
+            <CardDescription>Servicios más reservados</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <Skeleton className="h-[300px] w-full" />
@@ -241,8 +241,8 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
         </Card>
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Appointment Status</CardTitle>
-            <CardDescription>Breakdown of appointment status</CardDescription>
+            <CardTitle>Estado de la Cita</CardTitle>
+            <CardDescription>Desglose del estado de la cita</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <Skeleton className="h-[300px] w-full" />
@@ -259,18 +259,18 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
   return (
     <div className="space-y-6">
         <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-semibold">Accounting Overview</h2>
+            <h2 className="text-2xl font-semibold">Resumen de Contabilidad</h2>
              <Select value={timePeriod} onValueChange={(value: TimePeriod) => setTimePeriod(value)}>
                 <SelectTrigger className="w-[180px]">
                     <CalendarIconLucide className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Select period" />
+                    <SelectValue placeholder="Seleccionar periodo" />
                 </SelectTrigger>
                 <SelectContent>
-                   <SelectItem value="today">Today</SelectItem>
-                    <SelectItem value="this_week">This Week</SelectItem>
-                    <SelectItem value="last_week">Last Week</SelectItem>
-                    <SelectItem value="this_month">This Month</SelectItem>
-                    <SelectItem value="last_month">Last Month</SelectItem>
+                   <SelectItem value="today">Hoy</SelectItem>
+                    <SelectItem value="this_week">Esta Semana</SelectItem>
+                    <SelectItem value="last_week">Semana Pasada</SelectItem>
+                    <SelectItem value="this_month">Este Mes</SelectItem>
+                    <SelectItem value="last_month">Mes Pasado</SelectItem>
                 </SelectContent>
             </Select>
         </div>
@@ -278,45 +278,45 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Ingresos Totales</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(totalRevenue)}</div>
-            <p className="text-xs text-muted-foreground">Revenue for selected period</p>
+            <p className="text-xs text-muted-foreground">Ingresos para el periodo seleccionado</p>
           </CardContent>
         </Card>
          <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Daily Cash Drawer</CardTitle>
+            <CardTitle className="text-sm font-medium">Cierre de Caja Diario</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
              <div className="text-2xl font-bold">{formatCurrency(dailyCashDrawer)}</div>
-             <p className="text-xs text-muted-foreground">Cash amount for today's sales</p>
+             <p className="text-xs text-muted-foreground">Monto en efectivo de las ventas de hoy</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Clientes</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalClients}</div>
-             <p className="text-xs text-muted-foreground">Clients served in selected period</p>
+             <p className="text-xs text-muted-foreground">Clientes atendidos en el periodo seleccionado</p>
           </CardContent>
         </Card>
       </div>
 
       <Card className="lg:col-span-4">
         <CardHeader>
-          <CardTitle>Revenue Overview</CardTitle>
-          <CardDescription>Daily revenue for the selected period.</CardDescription>
+          <CardTitle>Resumen de Ingresos</CardTitle>
+          <CardDescription>Ingresos diarios para el periodo seleccionado.</CardDescription>
         </CardHeader>
         <CardContent className="pl-2">
           {dailyRevenueData.length === 0 ? (
              <div className="h-[350px] flex items-center justify-center text-muted-foreground">
-                No revenue data for this period.
+                No hay datos de ingresos para este periodo.
              </div>
            ) : (
            <ResponsiveContainer width="100%" height={350}>
@@ -351,13 +351,13 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
       <div className="grid gap-4 md:grid-cols-2">
          <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle>Service Popularity</CardTitle>
-            <CardDescription>Most booked services</CardDescription>
+            <CardTitle>Popularidad del Servicio</CardTitle>
+            <CardDescription>Servicios más reservados</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             {servicePopularityData.length === 0 ? (
               <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                No service popularity data for this period.
+                No hay datos de popularidad de servicios para este periodo.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
@@ -394,7 +394,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                     contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }}
                     labelStyle={{ color: 'hsl(var(--foreground))' }}
                     itemStyle={{ color: 'hsl(var(--foreground))' }}
-                    formatter={(value: number, name: string) => [`${value} bookings`, name]} // Format tooltip for service count
+                    formatter={(value: number, name: string) => [`${value} reservas`, name]} // Format tooltip for service count
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -403,8 +403,8 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
         </Card>
         <Card className="lg:col-span-1">
            <CardHeader>
-             <CardTitle>Appointment Status</CardTitle>
-             <CardDescription>Breakdown of appointment status</CardDescription>
+             <CardTitle>Estado de la Cita</CardTitle>
+             <CardDescription>Desglose del estado de la cita</CardDescription>
            </CardHeader>
            <CardContent className="pl-2">
               {hasAppointmentData ? (
@@ -417,7 +417,12 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                          cy="50%"
                          outerRadius={80}
                          labelLine={false}
-                         label={({ entry, percent }) => `${entry.name} (${(percent * 100).toFixed(0)}%)`}
+                         // Fix: Access name and percent from props.payload directly
+                         label={(props) => {
+                            const { name, percent } = props.payload || {}; // Use payload
+                            if (name === undefined || percent === undefined) return null;
+                            return `${name} (${(percent * 100).toFixed(0)}%)`;
+                         }}
                       >
                          {appointmentStatusData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={statusColors[entry.name.toLowerCase().replace(' ', '') as keyof typeof statusColors] || "hsl(var(--muted))"} />
@@ -427,13 +432,13 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                          contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }}
                          labelStyle={{ color: 'hsl(var(--foreground))' }}
                          itemStyle={{ color: 'hsl(var(--foreground))' }}
-                         formatter={(value: number, name: string) => [`${value} appointments`, name]} // Format tooltip for status count
+                         formatter={(value: number, name: string) => [`${value} citas`, name]} // Format tooltip for status count
                       />
                     </PieChart>
                  </ResponsiveContainer>
               ) : (
                  <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                    No appointment status data for this period.
+                    No hay datos de estado de citas para este periodo.
                  </div>
               )}
            </CardContent>
