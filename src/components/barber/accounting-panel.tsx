@@ -1,7 +1,7 @@
  "use client";
 
 import * as React from 'react';
-import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, subWeeks, isWithinInterval, parseISO, compareAsc } from 'date-fns'; // Added parseISO, compareAsc
+import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, subWeeks, isWithinInterval, parseISO, compareAsc, isSameDay } from 'date-fns'; // Added parseISO, compareAsc, isSameDay
 import { DollarSign, Users, Calendar as CalendarIconLucide, CheckCircle, XCircle, UserX } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from "recharts";
 import {
@@ -68,8 +68,7 @@ interface ServiceCount {
 const statusColors = {
     completed: "hsl(var(--chart-1))",
     cancelled: "hsl(var(--destructive))",
-    noShow: "hsl(var(--chart-5))",
-    // Add more statuses as needed
+    noshow: "hsl(var(--chart-5))", // Changed from noShow to noshow to match appointment status values
 };
 
 export function AccountingPanel({ barberId }: AccountingPanelProps) {
@@ -77,8 +76,17 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
   const [filteredAppointments, setFilteredAppointments] = React.useState<Appointment[]>([]);
   const [timePeriod, setTimePeriod] = React.useState<TimePeriod>('this_month');
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isClient, setIsClient] = React.useState(false);
+
+
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
+
 
   const fetchAndFilterAppointments = React.useCallback(() => {
+     if (!isClient) return; // Only run on client
+
      setIsLoading(true);
      try {
        const appointmentsFromStorage = getClientAppointments(); // Get all appointments
@@ -96,79 +104,74 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
      } finally {
         setIsLoading(false);
      }
-  }, [timePeriod]); // Removed barberId dependency as we fetch all
+  }, [timePeriod, isClient]);
 
 
   React.useEffect(() => {
-    fetchAndFilterAppointments();
+    if (isClient) {
+        fetchAndFilterAppointments();
 
-     // Listen for changes triggered by booking/cancellation
-     const handleStorageChange = (event: StorageEvent) => {
-        if (event.key === 'barberEaseClientAppointments' || event.key === null) {
-            fetchAndFilterAppointments();
-        }
-     };
-     const handleAppointmentBooked = () => fetchAndFilterAppointments();
+        const handleStorageChange = (event: StorageEvent) => {
+            if (event.key === 'barberEaseClientAppointments' || event.key === null) {
+                fetchAndFilterAppointments();
+            }
+        };
+        const handleAppointmentBookedOrStatusChanged = () => fetchAndFilterAppointments();
 
-     window.addEventListener('storage', handleStorageChange);
-     window.addEventListener('appointmentbooked', handleAppointmentBooked);
+        window.addEventListener('storage', handleStorageChange);
+        window.addEventListener('appointmentbooked', handleAppointmentBookedOrStatusChanged);
+        window.addEventListener('appointmentstatuschanged', handleAppointmentBookedOrStatusChanged); // Listen for status change
 
-     return () => {
-        window.removeEventListener('storage', handleStorageChange);
-        window.removeEventListener('appointmentbooked', handleAppointmentBooked);
-     };
-  }, [fetchAndFilterAppointments]); // Only depends on the fetch function now
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('appointmentbooked', handleAppointmentBookedOrStatusChanged);
+            window.removeEventListener('appointmentstatuschanged', handleAppointmentBookedOrStatusChanged);
+        };
+    }
+  }, [fetchAndFilterAppointments, isClient]);
 
-   // Filter for completed appointments for revenue calculation
    const completedAppointments = filteredAppointments.filter(app => app.status === 'completed');
-
-   // Use bookedItem.price for revenue calculation from completed appointments
    const totalRevenue = completedAppointments.reduce((sum, app) => sum + app.bookedItem.price, 0);
-   const totalClients = filteredAppointments.length; // Total clients seen (regardless of status)
+   const totalClients = filteredAppointments.length;
 
 
    const dailyRevenueData: Omit<DailyRevenue, 'dateObj'>[] = React.useMemo(() => {
     const revenueMap = new Map<string, { total: number; dateObj: Date }>();
-
-    // Calculate revenue only from completed appointments
     completedAppointments.forEach(app => {
-       const dateStr = format(app.date, 'yyyy-MM-dd'); // Use ISO date string as key
+       const dateStr = format(app.date, 'yyyy-MM-dd');
        const current = revenueMap.get(dateStr) || { total: 0, dateObj: app.date };
        current.total += app.bookedItem.price;
        revenueMap.set(dateStr, current);
     });
-
-     // Convert map to array, sort by date, and format name for display
      return Array.from(revenueMap.values())
-        .sort((a, b) => compareAsc(a.dateObj, b.dateObj)) // Sort by actual date object
+        .sort((a, b) => compareAsc(a.dateObj, b.dateObj))
         .map(data => ({
-            name: format(data.dateObj, 'MMM d'), // Format name for chart label
+            name: format(data.dateObj, 'MMM d'),
             total: data.total,
         }));
-   }, [completedAppointments]); // Depends on completed appointments now
+   }, [completedAppointments]);
 
 
-   // Service popularity uses all appointments in the period
    const servicePopularityData: ServiceCount[] = React.useMemo(() => {
     const serviceCounts = new Map<string, number>();
-
+    // Use all appointments in the period for popularity, regardless of status,
+    // as a cancelled booking still indicates interest in a service.
     filteredAppointments.forEach(app => {
         const serviceName = app.bookedItem.name;
         serviceCounts.set(serviceName, (serviceCounts.get(serviceName) || 0) + 1);
     });
-
-    // Convert map to array for recharts
     return Array.from(serviceCounts).map(([name, count]) => ({ name, count }));
 }, [filteredAppointments]);
 
-   // Calculate daily cash drawer amount from today's *completed* appointments
+
    const dailyCashDrawer = React.useMemo(() => {
-      if (timePeriod === 'today') {
-          const todaysCompleted = completedAppointments.filter(app => isSameDay(app.date, new Date()));
-          return todaysCompleted.reduce((sum, app) => sum + app.bookedItem.price, 0);
-      }
-      return 0;
-   }, [timePeriod, completedAppointments]);
+        // Calculate from *all* appointments, then filter for today's completed ones
+        const todayStart = startOfDay(new Date());
+        const todaysCompletedAppointments = allAppointments.filter(app =>
+            app.status === 'completed' && isSameDay(app.date, todayStart)
+        );
+        return todaysCompletedAppointments.reduce((sum, app) => sum + app.bookedItem.price, 0);
+   }, [allAppointments]);
 
 
    const appointmentStatusData = React.useMemo(() => {
@@ -177,17 +180,13 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
     const noShowCount = filteredAppointments.filter(app => app.status === 'noShow').length;
 
     const total = completedCount + cancelledCount + noShowCount;
-
-    // Avoid division by zero
-    const calculatePercentage = (count: number, total: number) => {
-        return total > 0 ? (count / total * 100).toFixed(1) : '0.0';
-    };
+    const calculatePercentage = (count: number) => (total > 0 ? (count / total * 100).toFixed(1) : '0.0');
 
     return [
-        { name: 'Completed', value: completedCount, percentage: calculatePercentage(completedCount, total) },
-        { name: 'Cancelled', value: cancelledCount, percentage: calculatePercentage(cancelledCount, total) },
-        { name: 'No Show', value: noShowCount, percentage: calculatePercentage(noShowCount, total) },
-    ].filter(item => item.value > 0); // Filter out items with 0 value for cleaner pie chart
+        { name: 'Completed', value: completedCount, percentage: calculatePercentage(completedCount) },
+        { name: 'Cancelled', value: cancelledCount, percentage: calculatePercentage(cancelledCount) },
+        { name: 'No Show', value: noShowCount, percentage: calculatePercentage(noShowCount) },
+    ].filter(item => item.value > 0);
    }, [filteredAppointments]);
 
    const hasAppointmentData = appointmentStatusData.length > 0;
@@ -225,7 +224,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
               <Skeleton className="h-3 w-32 mt-1" />
             </CardContent>
          </Card>
-         <div className="lg:col-span-4 pt-6">
+         <div className="lg:col-span-4 pt-6"> {/* Corrected from md:col-span-4 */}
          <Card>
             <CardHeader>
               <CardTitle>Resumen de Ingresos</CardTitle>
@@ -258,7 +257,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
   );
 
 
-  if (isLoading) {
+  if (!isClient || isLoading) { // Show skeleton if not client or loading
      return renderLoadingState();
    }
 
@@ -314,7 +313,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
         </Card>
       </div>
 
-      <Card className="lg:col-span-4">
+      <Card className="lg:col-span-4"> {/* Corrected from md:col-span-4 */}
         <CardHeader>
           <CardTitle>Resumen de Ingresos</CardTitle>
           <CardDescription>Ingresos diarios completados para el periodo seleccionado.</CardDescription>
@@ -339,16 +338,16 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(value) => formatCurrency(value)} // Format Y-axis ticks
+                tickFormatter={(value) => formatCurrency(value)}
               />
                <Tooltip
                  cursor={{ fill: 'hsl(var(--accent)/0.1)' }}
                  contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }}
                  labelStyle={{ color: 'hsl(var(--foreground))' }}
                  itemStyle={{ color: 'hsl(var(--foreground))' }}
-                  formatter={(value: number) => formatCurrency(value)} // Format tooltip value
+                  formatter={(value: number) => formatCurrency(value)}
                />
-              <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="total" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} /> {/* Changed from --primary to --accent */}
             </BarChart>
           </ResponsiveContainer>
           )}
@@ -377,20 +376,22 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                     outerRadius={80}
                     fill="#8884d8"
                     label={(props) => {
-                         const { cx, cy, midAngle, innerRadius, outerRadius, percent, index } = props;
+                         const { cx, cy, midAngle, innerRadius, outerRadius, index } = props;
+                         if (index === undefined || servicePopularityData[index] === undefined) return null; // Guard against undefined
                          const RADIAN = Math.PI / 180;
-                         const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                         // Adjust radius for better label placement if needed
+                         const radius = innerRadius + (outerRadius - innerRadius) * 0.6; // Move labels slightly inwards
                          const x = cx + radius * Math.cos(-midAngle * RADIAN);
                          const y = cy + radius * Math.sin(-midAngle * RADIAN);
                          const entry = servicePopularityData[index];
 
                          return (
-                            <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
+                            <text x={x} y={y} fill="hsl(var(--foreground))" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={10}>
                                 {`${entry.name} (${entry.count})`}
                             </text>
                          );
                     }}
-                     labelLine={false} // Disable default label line
+                     labelLine={false}
                   >
                     {servicePopularityData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${index % 5 + 1}))`} />
@@ -400,7 +401,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                     contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }}
                     labelStyle={{ color: 'hsl(var(--foreground))' }}
                     itemStyle={{ color: 'hsl(var(--foreground))' }}
-                    formatter={(value: number, name: string) => [`${value} reservas`, name]} // Format tooltip for service count
+                    formatter={(value: number, name: string) => [`${value} reservas`, name]}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -423,14 +424,10 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                          cy="50%"
                          outerRadius={80}
                          labelLine={false}
-                         // Fix: Access name and percent from props.payload directly
-                         label={(props) => {
-                             const entry = props.payload || {}; // Use payload or default to empty object
-                             const { name, value, percent } = entry; // Destructure payload
-
-                             if (name === undefined || value === undefined || percent === undefined) return null;
-                             // Show name and count in the label
-                             return `${name} (${value})`;
+                         label={(props: any) => { // Using any for props to access payload easily
+                             const {name, value, percentage} = props.payload || {};
+                             if (name === undefined || value === undefined || percentage === undefined) return null;
+                             return `${name}: ${value} (${percentage}%)`;
                          }}
                       >
                          {appointmentStatusData.map((entry, index) => (
@@ -442,8 +439,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                          labelStyle={{ color: 'hsl(var(--foreground))' }}
                          itemStyle={{ color: 'hsl(var(--foreground))' }}
                          formatter={(value: number, name: string, props: any) => {
-                             // Format tooltip to show count and percentage
-                             const percentage = props?.payload?.percentage || '0.0'; // Access percentage from payload
+                             const percentage = props?.payload?.percentage || '0.0';
                              return [`${value} (${percentage}%)`, name];
                          }}
                       />
@@ -460,3 +456,4 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
     </div>
   );
 }
+

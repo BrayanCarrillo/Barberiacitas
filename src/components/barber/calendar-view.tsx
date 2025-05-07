@@ -66,19 +66,32 @@ export function CalendarView({ barberId }: CalendarViewProps) {
   const [isLoading, setIsLoading] = React.useState(true);
   const [currentClientTime, setCurrentClientTime] = React.useState<Date | null>(null);
   const { toast } = useToast();
+  const [isClient, setIsClient] = React.useState(false);
+
+
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
+
 
   // Set initial date and client time on mount (client-side only)
   React.useEffect(() => {
-    setSelectedDate(startOfDay(new Date()));
-    setCurrentClientTime(new Date());
-     // Timer to update current time periodically for isPast check (optional)
-     const timer = setInterval(() => setCurrentClientTime(new Date()), 60 * 1000); // Update every minute
-     return () => clearInterval(timer); // Cleanup timer
-  }, []);
+    if(isClient) {
+        setSelectedDate(startOfDay(new Date()));
+        setCurrentClientTime(new Date());
+        // Timer to update current time periodically for isPast check (optional)
+        const timer = setInterval(() => setCurrentClientTime(new Date()), 60 * 1000); // Update every minute
+        return () => clearInterval(timer); // Cleanup timer
+    }
+  }, [isClient]);
 
   // Fetch appointments when selectedDate changes (and is not null)
   const fetchAndSetAppointments = React.useCallback(() => {
-     if (selectedDate) {
+     if (!isClient || !selectedDate) {
+        setIsLoading(true); // Set loading if not client or no date selected
+        setAppointments([]);
+        return;
+     }
       setIsLoading(true);
        try {
            const appointmentsForDate = getBarberAppointmentsForDate(selectedDate);
@@ -90,18 +103,18 @@ export function CalendarView({ barberId }: CalendarViewProps) {
        } finally {
           setIsLoading(false);
        }
-    } else {
-      setIsLoading(true);
-      setAppointments([]);
-    }
-  }, [selectedDate]);
+  }, [selectedDate, isClient]);
 
    React.useEffect(() => {
-      fetchAndSetAppointments();
-   }, [fetchAndSetAppointments]);
+    if (isClient) {
+        fetchAndSetAppointments();
+    }
+   }, [fetchAndSetAppointments, isClient]);
 
     // Add listener for storage changes to update the view
     React.useEffect(() => {
+        if (!isClient) return;
+
         const handleStorageChange = (event: StorageEvent) => {
             if (event.key === 'barberEaseClientAppointments' || event.key === null) {
                 console.log("Storage changed, refetching appointments for barber view...");
@@ -112,15 +125,23 @@ export function CalendarView({ barberId }: CalendarViewProps) {
             console.log("Custom 'appointmentbooked' event received, refetching...");
             fetchAndSetAppointments();
         }
+         const handleAppointmentStatusChanged = () => {
+            console.log("Custom 'appointmentstatuschanged' event received, refetching for calendar view...");
+            fetchAndSetAppointments();
+        };
+
 
         window.addEventListener('storage', handleStorageChange);
         window.addEventListener('appointmentbooked', handleAppointmentBooked);
+        window.addEventListener('appointmentstatuschanged', handleAppointmentStatusChanged);
+
 
         return () => {
             window.removeEventListener('storage', handleStorageChange);
             window.removeEventListener('appointmentbooked', handleAppointmentBooked);
+            window.removeEventListener('appointmentstatuschanged', handleAppointmentStatusChanged);
         };
-    }, [fetchAndSetAppointments]);
+    }, [fetchAndSetAppointments, isClient]);
 
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
@@ -131,6 +152,7 @@ export function CalendarView({ barberId }: CalendarViewProps) {
   };
 
    const handleStatusChange = (appointmentId: string, status: 'completed' | 'cancelled' | 'noShow') => {
+      if (!isClient) return;
       try {
          const allAppointments = getClientAppointments();
          const updatedAppointments = allAppointments.map(app =>
@@ -156,6 +178,8 @@ export function CalendarView({ barberId }: CalendarViewProps) {
             title: `Cita ${status === 'completed' ? 'completada' : status === 'cancelled' ? 'cancelada' : 'marcada como no presentado'}`,
             description: `Estado de la cita actualizado a ${status}.`,
          });
+         // Dispatch an event to notify other components (e.g., AccountingPanel)
+         window.dispatchEvent(new CustomEvent('appointmentstatuschanged', { detail: { appointmentId, status } }));
       } catch (error) {
          console.error("Error actualizando estado de la cita:", error);
          toast({
@@ -166,16 +190,16 @@ export function CalendarView({ barberId }: CalendarViewProps) {
       }
    };
 
-    const getStatusBadgeVariant = (status?: 'completed' | 'cancelled' | 'noShow'): 'default' | 'secondary' | 'destructive' => {
+    const getStatusBadgeVariant = (status?: 'completed' | 'cancelled' | 'noShow'): 'default' | 'secondary' | 'destructive' | 'outline' => {
         switch (status) {
             case 'completed':
-                return 'default';
+                return 'default'; // Typically green or primary
             case 'cancelled':
                 return 'destructive';
             case 'noShow':
-                return 'secondary';
+                return 'secondary'; // Typically gray or less prominent
             default:
-                return 'outline'; // Default or for pending/undefined status
+                return 'outline'; // For pending/booked status
         }
     };
 
@@ -188,12 +212,12 @@ export function CalendarView({ barberId }: CalendarViewProps) {
             case 'noShow':
                 return <UserX className="h-4 w-4 text-gray-500" />;
             default:
-                return null;
+                return null; // For 'booked' or undefined status, no icon or a default one
         }
     };
 
 
-  if (!selectedDate || !currentClientTime || isLoading || appointments === null) {
+  if (!isClient || !selectedDate || !currentClientTime || isLoading || appointments === null) {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
         <Card className="lg:col-span-1 flex flex-col">
@@ -202,7 +226,8 @@ export function CalendarView({ barberId }: CalendarViewProps) {
             <CardDescription>Elige una fecha para ver las citas.</CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center items-start pt-0 flex-grow">
-             {!selectedDate ? <Skeleton className="w-[280px] h-[330px]" /> : <Calendar mode="single" selected={selectedDate} disabled className="p-0"/> }
+             {!selectedDate && isClient ? <Skeleton className="w-[280px] h-[330px]" /> : <Calendar mode="single" selected={selectedDate} disabled className="p-0"/> }
+             {!isClient && <Skeleton className="w-[280px] h-[330px]" /> } {/* Skeleton for SSR */}
           </CardContent>
         </Card>
         <Card className="lg:col-span-2 flex flex-col">
@@ -252,7 +277,7 @@ export function CalendarView({ barberId }: CalendarViewProps) {
               <ul className="space-y-4">
                 {appointments.map((app, index) => {
                    const appointmentTime = parse(app.time || '00:00', 'HH:mm', selectedDate);
-                   const isPast = isBefore(appointmentTime, currentClientTime);
+                   const isPast = currentClientTime ? isBefore(appointmentTime, currentClientTime) : false;
                    const isCombo = app.bookedItem.type === 'combo';
                    const statusIcon = getStatusIcon(app.status);
 
@@ -260,18 +285,23 @@ export function CalendarView({ barberId }: CalendarViewProps) {
                   <React.Fragment key={app.id}>
                     <li className={cn(
                         "p-4 rounded-lg border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4",
-                        isPast && app.status !== 'completed' ? 'bg-muted/50 opacity-70' : 'bg-card', // Dim past, non-completed appointments
+                        isPast && !app.status ? 'bg-muted/50 opacity-70' : 'bg-card', // Dim past, non-statused (booked) appointments
+                        app.status === 'completed' && isPast ? 'bg-green-500/10 border-green-500/30' : '', // Style for completed past
+                        app.status === 'completed' && !isPast ? 'border-green-500/30' : '', // Style for completed future (less prominent)
                         app.status === 'cancelled' && 'border-destructive/50 bg-destructive/10',
-                        app.status === 'noShow' && 'border-muted-foreground/50 bg-muted/30'
+                        app.status === 'noShow' && 'border-muted-foreground/50 bg-muted/30 opacity-80'
                      )}>
                        <div className="space-y-1 flex-grow">
                            <div className="flex items-center gap-2">
                              <User className="h-4 w-4 text-muted-foreground" />
                              <span className="font-semibold">{app.clientName ?? 'Cliente Desconocido'}</span>
                               {statusIcon && <span className="ml-1">{statusIcon}</span>}
-                             {isPast && app.status !== 'completed' && <Badge variant="outline">Pasada</Badge>}
+                             {isPast && !app.status && <Badge variant="outline">Pasada</Badge>}
                                <Badge variant={getStatusBadgeVariant(app.status)} className="ml-auto sm:ml-2">
-                                   {app.status ? app.status.charAt(0).toUpperCase() + app.status.slice(1) : 'Agendada'}
+                                   {app.status === 'completed' ? 'Completada' :
+                                    app.status === 'cancelled' ? 'Cancelada' :
+                                    app.status === 'noShow' ? 'No Presentado' :
+                                    'Agendada'}
                                </Badge>
                            </div>
                            <div className="flex items-center text-sm text-muted-foreground gap-2">
@@ -301,7 +331,6 @@ export function CalendarView({ barberId }: CalendarViewProps) {
                                  </DropdownMenuItem>
                               </DropdownMenuContent>
                            </DropdownMenu>
-                       {/* Remove closing div here, it was inside the li */}
                     </li>
                     {index < appointments.length - 1 && <Separator className="my-4" />}
                   </React.Fragment>
@@ -315,3 +344,4 @@ export function CalendarView({ barberId }: CalendarViewProps) {
     </div>
   );
 }
+
