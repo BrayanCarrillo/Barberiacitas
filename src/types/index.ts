@@ -49,6 +49,16 @@ export interface DailySchedule {
   end?: string; // HH:mm format, optional if not available
 }
 
+export interface Announcement {
+  id: string;
+  message: string;
+  isActive: boolean;
+  affectsBooking: 'none' | 'closed_day' | 'custom_hours';
+  effectiveDate?: string; // ISO date string, e.g., "2024-07-15"
+  customStartTime?: string; // HH:mm, if affectsBooking is 'custom_hours'
+  customEndTime?: string; // HH:mm, if affectsBooking is 'custom_hours'
+}
+
 export interface BarberSettings {
   rentAmount: number;
   monday: DailySchedule;
@@ -60,6 +70,7 @@ export interface BarberSettings {
   sunday: DailySchedule;
   breakTimes: { start: string; end: string }[]; // HH:mm format
   lunchBreak: { start: string; end: string }; // HH:mm format
+  announcement?: Announcement;
 }
 
 // Ensure Payment interface aligns with rent-payment service
