@@ -1,15 +1,16 @@
 import type { Metadata } from 'next';
-import { GeistSans } from 'geist/font/sans'; // Corrected import for Geist Sans font
-import { GeistMono } from 'geist/font/mono'; // Corrected import for Geist Mono font
+import { GeistSans } from 'geist/font/sans'; 
+import { GeistMono } from 'geist/font/mono'; 
 import './globals.css';
 import { Header } from '@/components/layout/header';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
+import { ThemeProvider } from '@/components/layout/theme-provider'; // Import ThemeProvider
 
 // Initialize fonts by calling the imported functions
 // Place initialization outside the component function
-const geistSans = GeistSans; // Assign the imported font object directly
-const geistMono = GeistMono; // Assign the imported font object directly
+const geistSans = GeistSans; 
+const geistMono = GeistMono; 
 
 
 export const metadata: Metadata = {
@@ -32,11 +33,18 @@ export default function RootLayout({
           // Font family is now set globally via html tag and CSS variables
         )}
       >
-        <Header />
-        <main className="flex-grow container mx-auto px-4 py-8">
-          {children}
-        </main>
-        <Toaster />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <Header />
+          <main className="flex-grow container mx-auto px-4 py-8">
+            {children}
+          </main>
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );
