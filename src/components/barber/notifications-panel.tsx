@@ -1,8 +1,9 @@
+
 "use client";
 
 import * as React from 'react';
 import { differenceInMinutes, format, parse, isSameDay, startOfDay, addHours, isAfter } from 'date-fns';
-import { Bell, Clock, CalendarCheck2, Star, Scissors } from 'lucide-react'; // Added Star and Scissors
+import { Bell, Clock, CalendarCheck2, Star, Scissors, Send } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -16,6 +17,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getClientAppointments } from '@/lib/storage';
 import { formatTime } from '@/lib/date-utils';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 interface NotificationsPanelProps {
   barberId: string;
@@ -27,44 +30,63 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
   const [dailyAppointments, setDailyAppointments] = React.useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [currentTime, setCurrentTime] = React.useState<Date | null>(null);
+  const [isClient, setIsClient] = React.useState(false);
+  const { toast } = useToast();
+  const [isSWRegistered, setIsSWRegistered] = React.useState(false);
+  const [isTestingNotification, setIsTestingNotification] = React.useState(false);
 
-   React.useEffect(() => {
+
+  React.useEffect(() => {
+    setIsClient(true);
     setCurrentTime(new Date());
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
+  React.useEffect(() => {
+    if (isClient && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(registration => {
+          console.log('Service Worker registered with scope:', registration.scope);
+          setIsSWRegistered(true);
+          toast({
+            title: "Service Worker Registrado",
+            description: "Listo para notificaciones push (si se otorgan permisos).",
+          });
+        })
+        .catch(error => {
+          console.error('Service Worker registration failed:', error);
+          toast({
+            title: "Error de Service Worker",
+            description: "No se pudo registrar el service worker para notificaciones.",
+            variant: "destructive",
+          });
+        });
+    }
+  }, [isClient, toast]);
+
+
    const fetchAndFilterAppointments = React.useCallback(() => {
-    if (currentTime) {
+    if (currentTime && isClient) {
         setIsLoading(true);
         try {
             const appointmentsFromStorage = getClientAppointments();
             setAllAppointments(appointmentsFromStorage);
 
-            // Filter for upcoming (within the next hour from currentTime)
-             const upcoming = appointmentsFromStorage
-                .map(app => ({ // Calculate dateTime for filtering
-                    ...app,
-                    dateTime: parse(app.time, 'HH:mm', app.date)
-                }))
+            const upcoming = appointmentsFromStorage
+                .map(app => ({ ...app, dateTime: parse(app.time, 'HH:mm', app.date) }))
                 .filter(app => {
                     const diff = differenceInMinutes(app.dateTime, currentTime);
                     return isAfter(app.dateTime, currentTime) && diff <= 60;
                 })
-                 .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime()); // Sort upcoming
+                 .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
             setUpcomingAppointments(upcoming);
 
-            // Filter for today's remaining appointments from currentTime
             const todayStart = startOfDay(currentTime);
              const daily = appointmentsFromStorage
-                 .map(app => ({ // Calculate dateTime for filtering and sorting
-                    ...app,
-                    dateTime: parse(app.time, 'HH:mm', app.date)
-                 }))
-                 .filter(app =>
-                    isSameDay(app.date, todayStart) && isAfter(app.dateTime, currentTime)
-                 )
-                 .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime()); // Sort daily remaining
+                 .map(app => ({ ...app, dateTime: parse(app.time, 'HH:mm', app.date) }))
+                 .filter(app => isSameDay(app.date, todayStart) && isAfter(app.dateTime, currentTime))
+                 .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
             setDailyAppointments(daily);
 
         } catch (error) {
@@ -75,28 +97,26 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
         } finally {
           setIsLoading(false);
         }
-    } else {
+    } else if (isClient) { // Ensure loading state is managed if currentTime is not set but isClient is true
        setIsLoading(true);
        setUpcomingAppointments([]);
        setDailyAppointments([]);
     }
-  }, [barberId, currentTime]);
+  }, [currentTime, isClient]); // Added isClient dependency
 
-  // Effect to fetch and filter appointments
   React.useEffect(() => {
-     fetchAndFilterAppointments();
-  }, [fetchAndFilterAppointments]);
+     if(isClient) fetchAndFilterAppointments();
+  }, [fetchAndFilterAppointments, isClient]);
 
-   // Add listener for storage changes
    React.useEffect(() => {
+        if (!isClient) return;
+
         const handleStorageChange = (event: StorageEvent) => {
             if (event.key === 'barberEaseClientAppointments' || event.key === null) {
-                console.log("Storage changed, refetching notifications...");
                 fetchAndFilterAppointments();
             }
         };
         const handleAppointmentBooked = () => {
-             console.log("Custom 'appointmentbooked' event received, refetching notifications...");
             fetchAndFilterAppointments();
         }
 
@@ -107,26 +127,97 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
             window.removeEventListener('storage', handleStorageChange);
             window.removeEventListener('appointmentbooked', handleAppointmentBooked);
         };
-    }, [fetchAndFilterAppointments]); // Depend on the fetching function
+    }, [fetchAndFilterAppointments, isClient]);
+
+  const handleTestPushNotification = async () => {
+    if (!isClient) return;
+    setIsTestingNotification(true);
+
+    if (!('Notification' in window)) {
+      toast({
+        title: "Navegador no Soportado",
+        description: "Este navegador no soporta notificaciones de escritorio.",
+        variant: "destructive",
+      });
+      setIsTestingNotification(false);
+      return;
+    }
+
+    if (!isSWRegistered || !navigator.serviceWorker.controller) {
+        toast({
+            title: "Service Worker no Listo",
+            description: "El Service Worker aún no está listo o no está controlando la página. Intenta de nuevo en unos momentos o recarga la página.",
+            variant: "warning",
+        });
+        setIsTestingNotification(false);
+        return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        toast({
+          title: "Prueba de Notificación Programada",
+          description: "Recibirás una notificación en 30 segundos.",
+        });
+
+        setTimeout(() => {
+          if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'SHOW_TEST_NOTIFICATION',
+              message: '¡Tienes una nueva cita agendada! Revisa tu calendario.',
+            });
+          } else {
+             // Fallback should ideally not be needed if SW is registered and active
+             console.warn("Service Worker controller not available at time of sending message.");
+             new Notification('Notificación de Prueba (Fallback Directo)', {
+                body: '¡Nueva cita agendada! (SW controller no encontrado)',
+             });
+             toast({
+                title: "Advertencia de Notificación",
+                description: "Notificación enviada directamente, el Service Worker no estaba activo para el envío.",
+                variant: "warning"
+             });
+          }
+          setIsTestingNotification(false);
+        }, 30000); // 30 seconds
+
+      } else {
+        toast({
+          title: "Permiso Denegado",
+          description: "No se concedió permiso para mostrar notificaciones.",
+          variant: "warning",
+        });
+        setIsTestingNotification(false);
+      }
+    } catch (error) {
+      console.error("Error requesting notification permission or sending test notification:", error);
+      toast({
+        title: "Error de Notificación",
+        description: "Ocurrió un error al intentar enviar la notificación de prueba.",
+        variant: "destructive",
+      });
+      setIsTestingNotification(false);
+    }
+  };
+
 
   const renderAppointmentItem = (app: Appointment, isUpcoming: boolean = false) => {
      if (!currentTime) return null;
 
      const appDateTime = parse(app.time, 'HH:mm', app.date);
      const minutesUntil = differenceInMinutes(appDateTime, currentTime);
-     const timeFormatted = formatTime(app.time); // Use utility
+     const timeFormatted = formatTime(app.time);
      const isCombo = app.bookedItem.type === 'combo';
 
-    // Don't render past daily appointments (already filtered, but good safeguard)
-    if (!isUpcoming && minutesUntil < 0) return null;
+    if (!isUpcoming && minutesUntil < 0 && !isSameDay(appDateTime, currentTime) ) return null; //Also show past items for today
 
     return (
        <li key={app.id} className="flex items-start gap-4 p-3 rounded-md border bg-card">
-        <div className={`mt-1 p-1.5 rounded-full ${isUpcoming && minutesUntil <= 15 ? 'bg-accent/20 animate-pulse' : 'bg-primary/10'}`}>
+        <div className={`mt-1 p-1.5 rounded-full ${isUpcoming && minutesUntil <= 15 && minutesUntil >=0 ? 'bg-accent/20 animate-pulse' : 'bg-primary/10'}`}>
           {isUpcoming ? <Bell className="h-4 w-4 text-accent" /> : <CalendarCheck2 className="h-4 w-4 text-primary" />}
         </div>
         <div className="flex-grow space-y-0.5">
-          {/* Use bookedItem name */}
           <p className="font-medium flex items-center gap-1.5">
              {isCombo ? <Star className="h-4 w-4 text-primary" /> : <Scissors className="h-4 w-4 text-muted-foreground" />}
              {app.clientName ?? 'Cliente desconocido'} - {app.bookedItem.name}
@@ -138,6 +229,9 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
                <Badge variant={minutesUntil <= 15 ? "destructive" : "secondary"}>
                  en {minutesUntil} min
                </Badge>
+             )}
+             {isUpcoming && minutesUntil < 0 && ( // For items in the last hour that just passed
+                <Badge variant="outline">Hace {-minutesUntil} min</Badge>
              )}
            </div>
         </div>
@@ -159,68 +253,103 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
     </div>
   );
 
-  if (isLoading || !currentTime) {
+  if (!isClient || isLoading || !currentTime) { // Added !isClient check for skeleton
      return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
-         <Card className="flex flex-col">
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
+            <Card className="flex flex-col">
+                <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Bell className="text-accent h-5 w-5" />Próximas citas</CardTitle>
+                <CardDescription>Citas que comienzan en la próxima hora.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-grow flex flex-col min-h-0">
+                {renderSkeleton(2)}
+                </CardContent>
+            </Card>
+            <Card className="flex flex-col">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Bell className="text-accent h-5 w-5" />Próximas citas</CardTitle>
-              <CardDescription>Citas que comienzan en la próxima hora.</CardDescription>
+                <CardTitle className="flex items-center gap-2"><CalendarCheck2 className="text-primary h-5 w-5" />Agenda de hoy</CardTitle>
+                <CardDescription>Citas restantes para hoy.</CardDescription>
             </CardHeader>
             <CardContent className="flex-grow flex flex-col min-h-0">
-              {renderSkeleton(2)}
+                {renderSkeleton(4)}
             </CardContent>
-         </Card>
-         <Card className="flex flex-col">
-           <CardHeader>
-             <CardTitle className="flex items-center gap-2"><CalendarCheck2 className="text-primary h-5 w-5" />Agenda de hoy</CardTitle>
-             <CardDescription>Citas restantes para hoy.</CardDescription>
-           </CardHeader>
-           <CardContent className="flex-grow flex flex-col min-h-0">
-             {renderSkeleton(4)}
-           </CardContent>
-         </Card>
+            </Card>
+        </div>
+        <Card>
+            <CardHeader>
+                <CardTitle>Probar Notificaciones Push</CardTitle>
+                <CardDescription>
+                Haz clic en el botón para probar si las notificaciones push funcionan en tu navegador y dispositivo.
+                Recibirás una notificación en 30 segundos.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Skeleton className="h-10 w-48" />
+                 <Skeleton className="h-4 w-3/4 mt-2" />
+            </CardContent>
+        </Card>
       </div>
     );
    }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
-      <Card className="flex flex-col">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Bell className="text-accent h-5 w-5" />Próximas citas</CardTitle>
-          <CardDescription>Citas que comienzan en la próxima hora.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex-grow flex flex-col min-h-0">
-          <ScrollArea className="flex-grow pr-3 -mr-3">
-             {upcomingAppointments.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">No hay citas próximas.</p>
-            ) : (
-              <ul className="space-y-3">
-                {upcomingAppointments.map(app => renderAppointmentItem(app, true))}
-              </ul>
-            )}
-          </ScrollArea>
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
+        <Card className="flex flex-col">
+            <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Bell className="text-accent h-5 w-5" />Próximas citas</CardTitle>
+            <CardDescription>Citas que comienzan en la próxima hora.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-grow flex flex-col min-h-0">
+            <ScrollArea className="flex-grow pr-3 -mr-3">
+                {upcomingAppointments.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">No hay citas próximas.</p>
+                ) : (
+                <ul className="space-y-3">
+                    {upcomingAppointments.map(app => renderAppointmentItem(app, true))}
+                </ul>
+                )}
+            </ScrollArea>
+            </CardContent>
+        </Card>
 
-      <Card className="flex flex-col">
+        <Card className="flex flex-col">
+            <CardHeader>
+            <CardTitle className="flex items-center gap-2"><CalendarCheck2 className="text-primary h-5 w-5" />Agenda de hoy</CardTitle>
+            <CardDescription>Citas restantes para hoy.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-grow flex flex-col min-h-0">
+            <ScrollArea className="flex-grow pr-3 -mr-3">
+                {dailyAppointments.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">No hay más citas programadas para hoy.</p>
+                ) : (
+                <ul className="space-y-3">
+                    {dailyAppointments.map(app => renderAppointmentItem(app, false))}
+                </ul>
+                )}
+            </ScrollArea>
+            </CardContent>
+        </Card>
+        </div>
+        <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><CalendarCheck2 className="text-primary h-5 w-5" />Agenda de hoy</CardTitle>
-          <CardDescription>Citas restantes para hoy.</CardDescription>
+            <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" />Probar Notificaciones Push</CardTitle>
+            <CardDescription>
+            Haz clic en el botón para probar si las notificaciones push funcionan.
+            Recibirás una notificación en 30 segundos. Asegúrate de haber otorgado permisos.
+            </CardDescription>
         </CardHeader>
-        <CardContent className="flex-grow flex flex-col min-h-0">
-          <ScrollArea className="flex-grow pr-3 -mr-3">
-            {dailyAppointments.length === 0 ? (
-               <p className="text-muted-foreground text-center py-8">No hay más citas programadas para hoy.</p>
-            ) : (
-              <ul className="space-y-3">
-                {dailyAppointments.map(app => renderAppointmentItem(app, false))}
-              </ul>
-            )}
-          </ScrollArea>
+        <CardContent>
+            <Button onClick={handleTestPushNotification} disabled={!isClient || !isSWRegistered || isTestingNotification}>
+            {isTestingNotification ? 'Enviando prueba...' : 'Probar Notificación Push'}
+            </Button>
+            {!isClient && <p className="text-sm text-muted-foreground mt-2">Cargando...</p>}
+            {isClient && !isSWRegistered && <p className="text-sm text-muted-foreground mt-2">Registrando Service Worker para notificaciones...</p>}
+            {isClient && isSWRegistered && !('Notification' in window) && <p className="text-sm text-destructive mt-2">Este navegador no soporta notificaciones.</p>}
         </CardContent>
-      </Card>
+        </Card>
     </div>
   );
 }
+
