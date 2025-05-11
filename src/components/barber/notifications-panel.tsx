@@ -129,14 +129,14 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
           {/* Use bookedItem name */}
           <p className="font-medium flex items-center gap-1.5">
              {isCombo ? <Star className="h-4 w-4 text-primary" /> : <Scissors className="h-4 w-4 text-muted-foreground" />}
-             {app.clientName ?? 'Unknown Client'} - {app.bookedItem.name}
+             {app.clientName ?? 'Cliente desconocido'} - {app.bookedItem.name}
           </p>
           <div className="flex items-center text-sm text-muted-foreground gap-2">
              <Clock className="h-3.5 w-3.5" />
              <span>{timeFormatted}</span>
               {isUpcoming && minutesUntil >= 0 && (
                <Badge variant={minutesUntil <= 15 ? "destructive" : "secondary"}>
-                 in {minutesUntil} min
+                 en {minutesUntil} min
                </Badge>
              )}
            </div>
@@ -164,8 +164,8 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
          <Card className="flex flex-col">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Bell className="text-accent h-5 w-5" />Upcoming Appointments</CardTitle>
-              <CardDescription>Appointments starting within the next hour.</CardDescription>
+              <CardTitle className="flex items-center gap-2"><Bell className="text-accent h-5 w-5" />Próximas citas</CardTitle>
+              <CardDescription>Citas que comienzan en la próxima hora.</CardDescription>
             </CardHeader>
             <CardContent className="flex-grow flex flex-col min-h-0">
               {renderSkeleton(2)}
@@ -173,8 +173,8 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
          </Card>
          <Card className="flex flex-col">
            <CardHeader>
-             <CardTitle className="flex items-center gap-2"><CalendarCheck2 className="text-primary h-5 w-5" />Today's Schedule</CardTitle>
-             <CardDescription>Remaining appointments for today.</CardDescription>
+             <CardTitle className="flex items-center gap-2"><CalendarCheck2 className="text-primary h-5 w-5" />Agenda de hoy</CardTitle>
+             <CardDescription>Citas restantes para hoy.</CardDescription>
            </CardHeader>
            <CardContent className="flex-grow flex flex-col min-h-0">
              {renderSkeleton(4)}
@@ -188,13 +188,13 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
       <Card className="flex flex-col">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Bell className="text-accent h-5 w-5" />Upcoming Appointments</CardTitle>
-          <CardDescription>Appointments starting within the next hour.</CardDescription>
+          <CardTitle className="flex items-center gap-2"><Bell className="text-accent h-5 w-5" />Próximas citas</CardTitle>
+          <CardDescription>Citas que comienzan en la próxima hora.</CardDescription>
         </CardHeader>
         <CardContent className="flex-grow flex flex-col min-h-0">
           <ScrollArea className="flex-grow pr-3 -mr-3">
              {upcomingAppointments.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">No appointments starting soon.</p>
+              <p className="text-muted-foreground text-center py-8">No hay citas próximas.</p>
             ) : (
               <ul className="space-y-3">
                 {upcomingAppointments.map(app => renderAppointmentItem(app, true))}
@@ -206,13 +206,13 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
 
       <Card className="flex flex-col">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><CalendarCheck2 className="text-primary h-5 w-5" />Today's Schedule</CardTitle>
-          <CardDescription>Remaining appointments for today.</CardDescription>
+          <CardTitle className="flex items-center gap-2"><CalendarCheck2 className="text-primary h-5 w-5" />Agenda de hoy</CardTitle>
+          <CardDescription>Citas restantes para hoy.</CardDescription>
         </CardHeader>
         <CardContent className="flex-grow flex flex-col min-h-0">
           <ScrollArea className="flex-grow pr-3 -mr-3">
             {dailyAppointments.length === 0 ? (
-               <p className="text-muted-foreground text-center py-8">No more appointments scheduled for today.</p>
+               <p className="text-muted-foreground text-center py-8">No hay más citas programadas para hoy.</p>
             ) : (
               <ul className="space-y-3">
                 {dailyAppointments.map(app => renderAppointmentItem(app, false))}

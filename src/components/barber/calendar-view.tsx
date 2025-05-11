@@ -222,12 +222,12 @@ export function CalendarView({ barberId }: CalendarViewProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
         <Card className="lg:col-span-1 flex flex-col">
           <CardHeader>
-            <CardTitle>Seleccionar Fecha</CardTitle>
+            <CardTitle>Seleccionar fecha</CardTitle>
             <CardDescription>Elige una fecha para ver las citas.</CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center items-start pt-0 flex-grow">
              {!selectedDate && isClient ? <Skeleton className="w-[280px] h-[330px]" /> : <Calendar mode="single" selected={selectedDate} disabled className="p-0"/> }
-             {!isClient && <Skeleton className="w-[280px] h-[330px]" /> } {/* Skeleton for SSR */}
+             {!isClient && <Skeleton className="w-[280px] h-[330px]" /> }
           </CardContent>
         </Card>
         <Card className="lg:col-span-2 flex flex-col">
@@ -251,7 +251,7 @@ export function CalendarView({ barberId }: CalendarViewProps) {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
       <Card className="lg:col-span-1 flex flex-col">
          <CardHeader>
-           <CardTitle>Seleccionar Fecha</CardTitle>
+           <CardTitle>Seleccionar fecha</CardTitle>
            <CardDescription>Elige una fecha para ver las citas.</CardDescription>
          </CardHeader>
         <CardContent className="flex justify-center items-start pt-0 flex-grow">
@@ -285,9 +285,9 @@ export function CalendarView({ barberId }: CalendarViewProps) {
                   <React.Fragment key={app.id}>
                     <li className={cn(
                         "p-4 rounded-lg border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4",
-                        isPast && !app.status ? 'bg-muted/50 opacity-70' : 'bg-card', // Dim past, non-statused (booked) appointments
-                        app.status === 'completed' && isPast ? 'bg-green-500/10 border-green-500/30' : '', // Style for completed past
-                        app.status === 'completed' && !isPast ? 'border-green-500/30' : '', // Style for completed future (less prominent)
+                        isPast && !app.status ? 'bg-muted/50 opacity-70' : 'bg-card',
+                        app.status === 'completed' && isPast ? 'bg-green-500/10 border-green-500/30' : '',
+                        app.status === 'completed' && !isPast ? 'border-green-500/30' : '',
                         app.status === 'cancelled' && 'border-destructive/50 bg-destructive/10',
                         app.status === 'noShow' && 'border-muted-foreground/50 bg-muted/30 opacity-80'
                      )}>
@@ -300,7 +300,7 @@ export function CalendarView({ barberId }: CalendarViewProps) {
                                <Badge variant={getStatusBadgeVariant(app.status)} className="ml-auto sm:ml-2">
                                    {app.status === 'completed' ? 'Completada' :
                                     app.status === 'cancelled' ? 'Cancelada' :
-                                    app.status === 'noShow' ? 'No Presentado' :
+                                    app.status === 'noShow' ? 'No presentado' :
                                     'Agendada'}
                                </Badge>
                            </div>
@@ -316,7 +316,7 @@ export function CalendarView({ barberId }: CalendarViewProps) {
                            <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                  <Button variant="outline" size="sm" className="w-full sm:w-auto shrink-0">
-                                    Actualizar Estado
+                                    Actualizar estado
                                  </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">

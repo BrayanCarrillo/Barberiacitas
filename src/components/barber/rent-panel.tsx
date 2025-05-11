@@ -81,7 +81,7 @@ export function RentPanel({ barberId }: RentPanelProps) {
       console.error("Failed to fetch payment history:", error);
       toast({
         title: "Error",
-        description: "Could not load payment history.",
+        description: "No se pudo cargar el historial de pagos.",
         variant: "destructive",
       });
     } finally {
@@ -105,8 +105,8 @@ export function RentPanel({ barberId }: RentPanelProps) {
       const success = await submitRentPayment(paymentData);
       if (success) {
         toast({
-          title: 'Payment Successful',
-          description: `Successfully paid ${formatCurrency(data.amount)} towards rent.`,
+          title: 'Pago exitoso',
+          description: `Se registró correctamente el pago de ${formatCurrency(data.amount)} para la renta.`,
         });
         form.reset({ amount: rentAmount }); // Reset form to current rent amount
         fetchHistory();
@@ -116,8 +116,8 @@ export function RentPanel({ barberId }: RentPanelProps) {
     } catch (error) {
       console.error("Rent payment error:", error);
       toast({
-        title: 'Payment Failed',
-        description: 'There was an issue processing your rent payment. Please try again.',
+        title: 'Pago fallido',
+        description: 'Hubo un problema al procesar tu pago de renta. Por favor, inténtalo de nuevo.',
         variant: 'destructive',
       });
     } finally {
@@ -139,8 +139,8 @@ export function RentPanel({ barberId }: RentPanelProps) {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <Card className="lg:col-span-1">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Banknote className="h-5 w-5"/>Make Rent Payment</CardTitle>
-          <CardDescription>Submit your cash payment for this month's station rent. Rent is {formatCurrency(rentAmount)}.</CardDescription>
+          <CardTitle className="flex items-center gap-2"><Banknote className="h-5 w-5"/>Realizar pago de renta</CardTitle>
+          <CardDescription>Registra tu pago en efectivo de la renta de estación de este mes. La renta es {formatCurrency(rentAmount)}.</CardDescription>
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -150,16 +150,16 @@ export function RentPanel({ barberId }: RentPanelProps) {
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment Amount (COP)</FormLabel>
+                    <FormLabel>Monto del pago (COP)</FormLabel>
                     <FormControl>
                       <div className="relative">
                          <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                         <Input type="number" step="100" placeholder="Enter amount" className="pl-8" {...field} />
+                         <Input type="number" step="100" placeholder="Ingresa el monto" className="pl-8" {...field} />
                       </div>
                     </FormControl>
                     <FormMessage />
                     <FormDescription>
-                       Payment is made in cash.
+                       El pago se realiza en efectivo.
                     </FormDescription>
                   </FormItem>
                 )}
@@ -167,7 +167,7 @@ export function RentPanel({ barberId }: RentPanelProps) {
             </CardContent>
             <CardFooter>
                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                 {isSubmitting ? "Processing..." : `Pay Rent (${formatCurrency(form.watch('amount') || 0)})`}
+                 {isSubmitting ? "Procesando..." : `Pagar renta (${formatCurrency(form.watch('amount') || 0)})`}
                </Button>
             </CardFooter>
           </form>
@@ -176,17 +176,17 @@ export function RentPanel({ barberId }: RentPanelProps) {
 
       <Card className="lg:col-span-2 flex flex-col">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />Payment History</CardTitle>
-          <CardDescription>Your past rent payments.</CardDescription>
+          <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />Historial de pagos</CardTitle>
+          <CardDescription>Tus pagos de renta anteriores.</CardDescription>
         </CardHeader>
         <CardContent className="flex-grow flex flex-col min-h-0">
           <ScrollArea className="flex-grow">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Amount (COP)</TableHead>
-                  <TableHead>Method</TableHead>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead className="text-right">Monto (COP)</TableHead>
+                  <TableHead>Método</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -197,13 +197,13 @@ export function RentPanel({ barberId }: RentPanelProps) {
                     <TableRow key={index}>
                       <TableCell>{format(parseISO(payment.date), 'PPP p')}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(payment.amount)}</TableCell>
-                      <TableCell>{payment.method}</TableCell>
+                      <TableCell>{payment.method === 'Cash' ? 'Efectivo' : payment.method}</TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
                     <TableCell colSpan={3} className="h-24 text-center">
-                      No payment history found.
+                      No se encontraron pagos de renta.
                     </TableCell>
                   </TableRow>
                 )}

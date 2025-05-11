@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import * as React from 'react';
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, subWeeks, isWithinInterval, parseISO, compareAsc, isSameDay } from 'date-fns'; // Added parseISO, compareAsc, isSameDay
@@ -264,7 +264,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
   return (
     <div className="space-y-6">
         <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-semibold">Resumen de Contabilidad</h2>
+            <h2 className="text-2xl font-semibold">Resumen de contabilidad</h2>
              <Select value={timePeriod} onValueChange={(value: TimePeriod) => setTimePeriod(value)}>
                 <SelectTrigger className="w-[180px]">
                     <CalendarIconLucide className="mr-2 h-4 w-4" />
@@ -272,10 +272,10 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                 </SelectTrigger>
                 <SelectContent>
                    <SelectItem value="today">Hoy</SelectItem>
-                    <SelectItem value="this_week">Esta Semana</SelectItem>
-                    <SelectItem value="last_week">Semana Pasada</SelectItem>
-                    <SelectItem value="this_month">Este Mes</SelectItem>
-                    <SelectItem value="last_month">Mes Pasado</SelectItem>
+                    <SelectItem value="this_week">Esta semana</SelectItem>
+                    <SelectItem value="last_week">Semana pasada</SelectItem>
+                    <SelectItem value="this_month">Este mes</SelectItem>
+                    <SelectItem value="last_month">Mes pasado</SelectItem>
                 </SelectContent>
             </Select>
         </div>
@@ -283,7 +283,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ingresos Totales</CardTitle>
+            <CardTitle className="text-sm font-medium">Ingresos totales</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -293,7 +293,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
         </Card>
          <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cierre de Caja Diario</CardTitle>
+            <CardTitle className="text-sm font-medium">Cierre de caja diario</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -303,7 +303,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Clientes</CardTitle>
+            <CardTitle className="text-sm font-medium">Total clientes</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -313,9 +313,9 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
         </Card>
       </div>
 
-      <Card className="lg:col-span-4"> {/* Corrected from md:col-span-4 */}
+      <Card className="lg:col-span-4">
         <CardHeader>
-          <CardTitle>Resumen de Ingresos</CardTitle>
+          <CardTitle>Resumen de ingresos</CardTitle>
           <CardDescription>Ingresos diarios completados para el periodo seleccionado.</CardDescription>
         </CardHeader>
         <CardContent className="pl-2">
@@ -347,7 +347,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                  itemStyle={{ color: 'hsl(var(--foreground))' }}
                   formatter={(value: number) => formatCurrency(value)}
                />
-              <Bar dataKey="total" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} /> {/* Changed from --primary to --accent */}
+              <Bar dataKey="total" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
           )}
@@ -356,7 +356,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
       <div className="grid gap-4 md:grid-cols-2">
          <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle>Popularidad del Servicio</CardTitle>
+            <CardTitle>Popularidad del servicio</CardTitle>
             <CardDescription>Servicios más reservados</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
@@ -377,10 +377,9 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                     fill="#8884d8"
                     label={(props) => {
                          const { cx, cy, midAngle, innerRadius, outerRadius, index } = props;
-                         if (index === undefined || servicePopularityData[index] === undefined) return null; // Guard against undefined
+                         if (index === undefined || servicePopularityData[index] === undefined) return null;
                          const RADIAN = Math.PI / 180;
-                         // Adjust radius for better label placement if needed
-                         const radius = innerRadius + (outerRadius - innerRadius) * 0.6; // Move labels slightly inwards
+                         const radius = innerRadius + (outerRadius - innerRadius) * 0.6;
                          const x = cx + radius * Math.cos(-midAngle * RADIAN);
                          const y = cy + radius * Math.sin(-midAngle * RADIAN);
                          const entry = servicePopularityData[index];
@@ -410,7 +409,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
         </Card>
         <Card className="lg:col-span-1">
            <CardHeader>
-             <CardTitle>Estado de la Cita</CardTitle>
+             <CardTitle>Estado de la cita</CardTitle>
              <CardDescription>Desglose del estado de la cita</CardDescription>
            </CardHeader>
            <CardContent className="pl-2">
@@ -424,7 +423,7 @@ export function AccountingPanel({ barberId }: AccountingPanelProps) {
                          cy="50%"
                          outerRadius={80}
                          labelLine={false}
-                         label={(props: any) => { // Using any for props to access payload easily
+                         label={(props: any) => {
                              const {name, value, percentage} = props.payload || {};
                              if (name === undefined || value === undefined || percentage === undefined) return null;
                              return `${name}: ${value} (${percentage}%)`;
