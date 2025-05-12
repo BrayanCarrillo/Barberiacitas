@@ -157,8 +157,8 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
         toast({
-          title: "Prueba de Notificación Programada",
-          description: "Recibirás una notificación en 30 segundos.",
+          title: "Permiso Concedido",
+          description: "Prueba de notificación programada. Deberías recibirla en 5 segundos.",
         });
 
         setTimeout(() => {
@@ -168,7 +168,6 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
               message: '¡Tienes una nueva cita agendada! Revisa tu calendario.',
             });
           } else {
-             // Fallback should ideally not be needed if SW is registered and active
              console.warn("Service Worker controller not available at time of sending message.");
              new Notification('Notificación de Prueba (Fallback Directo)', {
                 body: '¡Nueva cita agendada! (SW controller no encontrado)',
@@ -180,13 +179,20 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
              });
           }
           setIsTestingNotification(false);
-        }, 30000); // 30 seconds
+        }, 5000); // 5 seconds
 
-      } else {
+      } else if (permission === 'denied') {
         toast({
-          title: "Permiso Denegado",
-          description: "No se concedió permiso para mostrar notificaciones.",
-          variant: "warning",
+            title: "Permiso Denegado",
+            description: "Has denegado el permiso para notificaciones. Por favor, habilítalo en la configuración de tu navegador para este sitio si deseas recibirlas.",
+            variant: "destructive",
+        });
+        setIsTestingNotification(false);
+      } else { // permission === 'default'
+        toast({
+            title: "Permiso Requerido",
+            description: "No se concedió permiso para mostrar notificaciones. Por favor, responde al aviso del navegador o revisa la configuración de tu sitio.",
+            variant: "warning",
         });
         setIsTestingNotification(false);
       }
@@ -281,7 +287,7 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
                 <CardTitle>Probar Notificaciones Push</CardTitle>
                 <CardDescription>
                 Haz clic en el botón para probar si las notificaciones push funcionan en tu navegador y dispositivo.
-                Recibirás una notificación en 30 segundos.
+                Recibirás una notificación en 5 segundos.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -337,7 +343,7 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
             <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" />Probar Notificaciones Push</CardTitle>
             <CardDescription>
             Haz clic en el botón para probar si las notificaciones push funcionan.
-            Recibirás una notificación en 30 segundos. Asegúrate de haber otorgado permisos.
+            Recibirás una notificación en 5 segundos. Asegúrate de haber otorgado permisos.
             </CardDescription>
         </CardHeader>
         <CardContent>
