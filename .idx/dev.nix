@@ -22,6 +22,7 @@
       };
     };
     # Enable previews and customize configuration
+     # Enable previews and customize configuration
     previews = {
       enable = true;
       previews = {
