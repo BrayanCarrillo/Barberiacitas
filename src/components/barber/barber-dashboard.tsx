@@ -1,4 +1,7 @@
 
+"use client";
+
+import * as React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CalendarView } from '@/components/barber/calendar-view';
 import { NotificationsPanel } from '@/components/barber/notifications-panel';
@@ -8,10 +11,28 @@ import { RentPanel } from '@/components/barber/rent-panel';
 import { CatalogPanel } from '@/components/barber/catalog-panel';
 import { AnnouncementPanel } from '@/components/barber/announcement-panel';
 import { CalendarDays, BellRing, Settings, Wallet, Banknote, List, Megaphone } from 'lucide-react';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'; // Import ScrollArea and ScrollBar
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function BarberDashboard() {
-  const barberId = "barber123"; 
+  const barberId = "barber123";
+  const [isClient, setIsClient] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  if (!isClient) {
+    return (
+      <div className="flex flex-col h-full">
+        <h1 className="text-3xl font-bold mb-6">Panel del Barbero</h1>
+        {/* Skeleton for TabsList */}
+        <Skeleton className="h-12 w-full mb-4 rounded-md" />
+        {/* Skeleton for TabsContent area */}
+        <Skeleton className="h-[calc(100vh-250px)] w-full rounded-md" /> {/* Adjusted height for better approximation */}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -55,3 +76,4 @@ export function BarberDashboard() {
     </div>
   );
 }
+
