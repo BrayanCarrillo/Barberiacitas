@@ -34,11 +34,16 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
   const { toast } = useToast();
   const [isSWRegistered, setIsSWRegistered] = React.useState(false);
   const [isTestingNotification, setIsTestingNotification] = React.useState(false);
+  const [notificationPermission, setNotificationPermission] = React.useState<NotificationPermission | null>(null);
 
 
   React.useEffect(() => {
     setIsClient(true);
     setCurrentTime(new Date());
+    // Initialize notificationPermission state on client mount
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
@@ -49,10 +54,7 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
         .then(registration => {
           console.log('Service Worker registered with scope:', registration.scope);
           setIsSWRegistered(true);
-          toast({
-            title: "Service Worker Registrado",
-            description: "Listo para notificaciones push (si se otorgan permisos).",
-          });
+          // No toast here, let user interact first
         })
         .catch(error => {
           console.error('Service Worker registration failed:', error);
@@ -97,12 +99,12 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
         } finally {
           setIsLoading(false);
         }
-    } else if (isClient) { // Ensure loading state is managed if currentTime is not set but isClient is true
+    } else if (isClient) { 
        setIsLoading(true);
        setUpcomingAppointments([]);
        setDailyAppointments([]);
     }
-  }, [currentTime, isClient]); // Added isClient dependency
+  }, [currentTime, isClient]); 
 
   React.useEffect(() => {
      if(isClient) fetchAndFilterAppointments();
@@ -143,67 +145,72 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
       return;
     }
 
-    if (!isSWRegistered || !navigator.serviceWorker.controller) {
+    // Check current permission status
+    let currentPermission = Notification.permission;
+    setNotificationPermission(currentPermission); // Update UI state
+
+    if (currentPermission === 'granted') {
+        // If permission is already granted, send the notification
+        new Notification('Notificación de Prueba', {
+            body: '¡Esta es una notificación de prueba de BarberEase!',
+            icon: '/icon-192x192.png' // Ensure this icon exists in public folder
+        });
         toast({
-            title: "Service Worker no Listo",
-            description: "El Service Worker aún no está listo o no está controlando la página. Intenta de nuevo en unos momentos o recarga la página.",
-            variant: "warning",
+            title: "Notificación Enviada",
+            description: "Ya tenías permiso. Se envió una notificación de prueba.",
+        });
+        setIsTestingNotification(false);
+        return;
+    }
+    
+    if (currentPermission === 'denied') {
+        toast({
+            title: "Permiso Denegado",
+            description: "Has denegado previamente el permiso para notificaciones. Por favor, habilítalo en la configuración de tu navegador para este sitio si deseas recibirlas.",
+            variant: "destructive",
         });
         setIsTestingNotification(false);
         return;
     }
 
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        toast({
-          title: "Permiso Concedido",
-          description: "Prueba de notificación programada. Deberías recibirla en 5 segundos.",
-        });
+    // If permission is 'default', request it
+    if (currentPermission === 'default') {
+        try {
+            const permissionResult = await Notification.requestPermission();
+            setNotificationPermission(permissionResult); // Update UI state with new permission
 
-        setTimeout(() => {
-          if (navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({
-              type: 'SHOW_TEST_NOTIFICATION',
-              message: '¡Tienes una nueva cita agendada! Revisa tu calendario.',
+            if (permissionResult === 'granted') {
+                new Notification('Notificación de Prueba', {
+                    body: '¡Permiso concedido! Esta es una notificación de prueba.',
+                    icon: '/icon-192x192.png'
+                });
+                toast({
+                    title: "Permiso Concedido",
+                    description: "Se envió una notificación de prueba.",
+                });
+            } else if (permissionResult === 'denied') {
+                toast({
+                    title: "Permiso Denegado",
+                    description: "Has denegado el permiso para notificaciones.",
+                    variant: "destructive",
+                });
+            } else { // default again, user dismissed the prompt
+                 toast({
+                    title: "Permiso no Concedido",
+                    description: "No se otorgó el permiso para notificaciones.",
+                    variant: "warning",
+                });
+            }
+        } catch (error) {
+            console.error("Error requesting notification permission:", error);
+            toast({
+                title: "Error de Permiso",
+                description: "Ocurrió un error al solicitar el permiso de notificación.",
+                variant: "destructive",
             });
-          } else {
-             console.warn("Service Worker controller not available at time of sending message.");
-             new Notification('Notificación de Prueba (Fallback Directo)', {
-                body: '¡Nueva cita agendada! (SW controller no encontrado)',
-             });
-             toast({
-                title: "Advertencia de Notificación",
-                description: "Notificación enviada directamente, el Service Worker no estaba activo para el envío.",
-                variant: "warning"
-             });
-          }
-          setIsTestingNotification(false);
-        }, 5000); // 5 seconds
-
-      } else if (permission === 'denied') {
-        toast({
-            title: "Permiso Denegado",
-            description: "Has denegado el permiso para notificaciones. Por favor, habilítalo en la configuración de tu navegador para este sitio si deseas recibirlas.",
-            variant: "destructive",
-        });
-        setIsTestingNotification(false);
-      } else { // permission === 'default'
-        toast({
-            title: "Permiso Requerido",
-            description: "No se concedió permiso para mostrar notificaciones. Por favor, responde al aviso del navegador o revisa la configuración de tu sitio.",
-            variant: "warning",
-        });
-        setIsTestingNotification(false);
-      }
-    } catch (error) {
-      console.error("Error requesting notification permission or sending test notification:", error);
-      toast({
-        title: "Error de Notificación",
-        description: "Ocurrió un error al intentar enviar la notificación de prueba.",
-        variant: "destructive",
-      });
-      setIsTestingNotification(false);
+        } finally {
+            setIsTestingNotification(false);
+        }
     }
   };
 
@@ -216,7 +223,7 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
      const timeFormatted = formatTime(app.time);
      const isCombo = app.bookedItem.type === 'combo';
 
-    if (!isUpcoming && minutesUntil < 0 && !isSameDay(appDateTime, currentTime) ) return null; //Also show past items for today
+    if (!isUpcoming && minutesUntil < 0 && !isSameDay(appDateTime, currentTime) ) return null; 
 
     return (
        <li key={app.id} className="flex items-start gap-4 p-3 rounded-md border bg-card">
@@ -236,7 +243,7 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
                  en {minutesUntil} min
                </Badge>
              )}
-             {isUpcoming && minutesUntil < 0 && ( // For items in the last hour that just passed
+             {isUpcoming && minutesUntil < 0 && ( 
                 <Badge variant="outline">Hace {-minutesUntil} min</Badge>
              )}
            </div>
@@ -259,7 +266,7 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
     </div>
   );
 
-  if (!isClient || isLoading || !currentTime) { // Added !isClient check for skeleton
+  if (!isClient || isLoading || !currentTime) { 
      return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
@@ -286,8 +293,7 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
             <CardHeader>
                 <CardTitle>Probar Notificaciones Push</CardTitle>
                 <CardDescription>
-                Haz clic en el botón para probar si las notificaciones push funcionan en tu navegador y dispositivo.
-                Recibirás una notificación en 5 segundos.
+                Haz clic en el botón para solicitar permiso y probar si las notificaciones push funcionan en tu navegador y dispositivo.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -342,17 +348,26 @@ export function NotificationsPanel({ barberId }: NotificationsPanelProps) {
         <CardHeader>
             <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" />Probar Notificaciones Push</CardTitle>
             <CardDescription>
-            Haz clic en el botón para probar si las notificaciones push funcionan.
-            Recibirás una notificación en 5 segundos. Asegúrate de haber otorgado permisos.
+                {notificationPermission === 'granted' 
+                    ? "Ya tienes permisos. Haz clic para enviar una notificación de prueba." 
+                    : "Haz clic en el botón para solicitar permiso y probar si las notificaciones push funcionan."
+                }
             </CardDescription>
         </CardHeader>
         <CardContent>
-            <Button onClick={handleTestPushNotification} disabled={!isClient || !isSWRegistered || isTestingNotification}>
-            {isTestingNotification ? 'Enviando prueba...' : 'Probar Notificación Push'}
+            <Button onClick={handleTestPushNotification} disabled={!isClient || isTestingNotification}>
+            {isTestingNotification ? 'Procesando...' : (notificationPermission === 'granted' ? 'Enviar Notificación de Prueba' : 'Solicitar Permiso y Probar')}
             </Button>
             {!isClient && <p className="text-sm text-muted-foreground mt-2">Cargando...</p>}
-            {isClient && !isSWRegistered && <p className="text-sm text-muted-foreground mt-2">Registrando Service Worker para notificaciones...</p>}
-            {isClient && isSWRegistered && !('Notification' in window) && <p className="text-sm text-destructive mt-2">Este navegador no soporta notificaciones.</p>}
+            {isClient && !('Notification' in window) && <p className="text-sm text-destructive mt-2">Este navegador no soporta notificaciones.</p>}
+             {isClient && notificationPermission && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Estado del Permiso de Notificación: <span className={
+                    notificationPermission === 'granted' ? 'text-green-600' : 
+                    notificationPermission === 'denied' ? 'text-red-600' : ''
+                }>{notificationPermission}</span>
+              </p>
+             )}
         </CardContent>
         </Card>
     </div>
